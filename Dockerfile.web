@@ -9,6 +9,7 @@ COPY packages/shared/package.json ./packages/shared/
 COPY packages/db/package.json ./packages/db/
 COPY packages/indexer/package.json ./packages/indexer/
 COPY packages/web/package.json ./packages/web/
+COPY extensions/pallet-staking/package.json ./extensions/pallet-staking/
 
 # Install all dependencies (workspaces need the full graph)
 RUN npm install
