@@ -55,7 +55,7 @@ export default async function BlockPage({
       {/* Block Details Card */}
       <div className="card space-y-3">
         <DetailRow label="Block Hash" value={block.hash} mono />
-        <DetailRow label="Parent Hash" value={block.parentHash} mono />
+        <DetailRow label="Parent Hash" value={block.parentHash} mono href={`/block/${block.height - 1}`} />
         <DetailRow label="State Root" value={truncateHash(block.stateRoot, 10)} mono />
         <DetailRow
           label="Extrinsics Root"
@@ -110,19 +110,30 @@ function DetailRow({
   label,
   value,
   mono,
+  href,
 }: {
   label: string;
   value: string;
   mono?: boolean;
+  href?: string;
 }) {
   return (
     <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-4">
       <span className="text-xs text-zinc-500 sm:w-40 shrink-0">{label}</span>
-      <span
-        className={`text-sm text-zinc-200 break-all ${mono ? "font-mono" : ""}`}
-      >
-        {value}
-      </span>
+      {href ? (
+        <a
+          href={href}
+          className={`text-sm text-accent hover:underline break-all ${mono ? "font-mono" : ""}`}
+        >
+          {value}
+        </a>
+      ) : (
+        <span
+          className={`text-sm text-zinc-200 break-all ${mono ? "font-mono" : ""}`}
+        >
+          {value}
+        </span>
+      )}
     </div>
   );
 }
