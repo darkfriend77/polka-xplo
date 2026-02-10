@@ -393,8 +393,7 @@ polka-xplo/
 ├── Dockerfile.web
 ├── turbo.json               # Turborepo pipeline configuration
 ├── tsconfig.base.json       # Shared TypeScript base config
-├── package.json             # Root workspace config
-└── spec.txt                 # Original architecture specification
+└── package.json             # Root workspace config
 ```
 
 ---
