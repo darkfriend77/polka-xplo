@@ -330,15 +330,17 @@ function readScaleValue(
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-interface EventVariant {
+interface VariantInfo {
   name: string;
   fields: { name: string | null; typeId: number }[];
 }
 
 interface PalletCallLookup {
   palletsByIndex: Map<number, { name: string; calls: Map<number, string> }>;
+  /** pallet index → Map<call variant index → VariantInfo with field types> */
+  callsByPalletIndex: Map<number, Map<number, VariantInfo>>;
   signedExtensions: string[];
-  eventsByPalletIndex: Map<number, Map<number, EventVariant>>;
+  eventsByPalletIndex: Map<number, Map<number, VariantInfo>>;
   rawTypes: Map<number, { tag: string; value: any }>;
 }
 
@@ -346,6 +348,13 @@ export interface DecodedCallInfo {
   module: string;
   call: string;
   signer: string | null;
+  /** Decoded call arguments with named fields (falls back to raw hex on error) */
+  args: Record<string, unknown>;
+  /** Raw extrinsic hex for tx_hash computation */
+  rawHex: string;
+  /** Signed extension values extracted from the extrinsic */
+  nonce: number | null;
+  tip: string | null;
 }
 
 export interface DecodedEvent {
@@ -376,12 +385,12 @@ export class ExtrinsicDecoder {
 
   /**
    * Ensure metadata is loaded for the given block's runtime.
-   * Returns the cached lookup if already available.
+   * Returns the cached lookup and the resolved specVersion.
    *
    * Uses promise-based deduplication so that concurrent backfill workers
    * requesting the same specVersion share a single in-flight fetch.
    */
-  async ensureMetadata(blockHash: string): Promise<PalletCallLookup> {
+  async ensureMetadata(blockHash: string): Promise<{ lookup: PalletCallLookup; specVersion: number }> {
     let specVersion = this.specVersionForBlock.get(blockHash);
 
     if (specVersion === undefined) {
@@ -391,11 +400,11 @@ export class ExtrinsicDecoder {
 
     // Fast path — already cached
     const existing = this.metadataCache.get(specVersion);
-    if (existing) return existing;
+    if (existing) return { lookup: existing, specVersion };
 
     // Dedup — join an in-flight fetch if one exists
     const inflight = this.metadataInflight.get(specVersion);
-    if (inflight) return inflight;
+    if (inflight) return { lookup: await inflight, specVersion };
 
     // Start a new fetch and store the promise for dedup
     console.log(
@@ -407,14 +416,24 @@ export class ExtrinsicDecoder {
       return lookup;
     });
     this.metadataInflight.set(specVersion, promise);
-    return promise;
+    return { lookup: await promise, specVersion };
   }
 
   /**
-   * Decode the call info (pallet name, call name, signer) from a single
-   * raw extrinsic hex string.
+   * Decode the call info (pallet name, call name, signer, decoded args,
+   * nonce, tip) from a single raw extrinsic hex string.
    */
   decodeCallInfo(hex: string, lookup: PalletCallLookup): DecodedCallInfo {
+    const fallback = (mod = "Unknown", call = "unknown", signer: string | null = null): DecodedCallInfo => ({
+      module: mod,
+      call,
+      signer,
+      args: { raw: hex },
+      rawHex: hex,
+      nonce: null,
+      tip: null,
+    });
+
     try {
       const bytes = hexToBytes(hex);
 
@@ -429,11 +448,10 @@ export class ExtrinsicDecoder {
       if (!isSigned) {
         const palletIndex = bytes[offset];
         const callIndex = bytes[offset + 1];
-        return {
-          module: this.resolvePalletName(palletIndex, lookup),
-          call: this.resolveCallName(palletIndex, callIndex, lookup),
-          signer: null,
-        };
+        const mod = this.resolvePalletName(palletIndex, lookup);
+        const call = this.resolveCallName(palletIndex, callIndex, lookup);
+        const args = this.decodeCallArgs(bytes, offset + 2, palletIndex, callIndex, lookup);
+        return { module: mod, call, signer: null, args, rawHex: hex, nonce: null, tip: null };
       }
 
       // ── Signed extrinsic ───────────────────────────────────────────────
@@ -453,7 +471,7 @@ export class ExtrinsicDecoder {
         signer = "0x" + bytesToHex(bytes.slice(offset, offset + 20));
         offset += 20;
       } else {
-        return { module: "Unknown", call: "unknown", signer: null };
+        return fallback();
       }
 
       // MultiSignature prefix byte
@@ -463,32 +481,52 @@ export class ExtrinsicDecoder {
       } else if (sigType === 2) {
         offset += 65; // Ecdsa
       } else {
-        return { module: "Unknown", call: "unknown", signer };
+        return fallback("Unknown", "unknown", signer);
       }
 
-      // Signed extensions — use metadata-declared extension list
+      // Signed extensions — parse and extract nonce + tip
+      let nonce: number | null = null;
+      let tip: string | null = null;
+
       for (const extId of lookup.signedExtensions) {
-        const parser = SIGNED_EXTENSION_PARSERS[extId];
-        if (parser) {
-          offset = parser(bytes, offset);
+        if (extId === "CheckNonce") {
+          const r = readCompact(bytes, offset);
+          nonce = r.value;
+          offset = r.offset;
+        } else if (extId === "ChargeTransactionPayment") {
+          const r = readCompact(bytes, offset);
+          tip = r.value.toString();
+          offset = r.offset;
+        } else if (extId === "ChargeAssetTxPayment") {
+          const r = readCompact(bytes, offset);
+          tip = r.value.toString();
+          offset = r.offset;
+          // Option<AssetId>
+          const hasAssetId = bytes[offset++];
+          if (hasAssetId === 1) {
+            offset = readCompact(bytes, offset).offset;
+          }
+        } else {
+          const parser = SIGNED_EXTENSION_PARSERS[extId];
+          if (parser) {
+            offset = parser(bytes, offset);
+          }
         }
-        // Unknown extensions are assumed to contribute 0 bytes
       }
 
-      // Call data
+      // Call data — decode pallet/call and arguments
       if (offset + 1 < bytes.length) {
         const palletIndex = bytes[offset];
         const callIndex = bytes[offset + 1];
-        return {
-          module: this.resolvePalletName(palletIndex, lookup),
-          call: this.resolveCallName(palletIndex, callIndex, lookup),
-          signer,
-        };
+        const mod = this.resolvePalletName(palletIndex, lookup);
+        const call = this.resolveCallName(palletIndex, callIndex, lookup);
+        const args = this.decodeCallArgs(bytes, offset + 2, palletIndex, callIndex, lookup);
+        return { module: mod, call, signer, args, rawHex: hex, nonce, tip };
       }
 
-      return { module: "Unknown", call: "unknown", signer };
+      return fallback("Unknown", "unknown", signer);
     } catch {
-      return { module: "Unknown", call: "unknown", signer: null };
+      return fallback();
     }
   }
 
@@ -616,6 +654,41 @@ export class ExtrinsicDecoder {
 
   // ── Private helpers ──────────────────────────────────────────────────────
 
+  /**
+   * Decode call arguments using the metadata type registry.
+   * Looks up the call variant's field definitions and reads each argument
+   * using readScaleValue. Falls back to raw hex on any error.
+   */
+  private decodeCallArgs(
+    bytes: Uint8Array,
+    offset: number,
+    palletIndex: number,
+    callIndex: number,
+    lookup: PalletCallLookup
+  ): Record<string, unknown> {
+    try {
+      const callVariant = lookup.callsByPalletIndex
+        .get(palletIndex)
+        ?.get(callIndex);
+
+      if (!callVariant || callVariant.fields.length === 0) {
+        return {};
+      }
+
+      const args: Record<string, unknown> = {};
+      let off = offset;
+      for (const field of callVariant.fields) {
+        const r = readScaleValue(bytes, off, field.typeId, lookup.rawTypes);
+        args[field.name ?? `arg_${field.typeId}`] = r.value;
+        off = r.offset;
+      }
+      return args;
+    } catch {
+      // On any decode error, return the remaining bytes as raw hex
+      return { raw: "0x" + bytesToHex(bytes.slice(offset)) };
+    }
+  }
+
   private resolvePalletName(
     index: number,
     lookup: PalletCallLookup
@@ -686,11 +759,36 @@ export class ExtrinsicDecoder {
       rawTypes.set(entry.id, entry.def);
     }
 
-    // Build event lookup: pallet index → Map<event_variant_idx → EventVariant>
-    const eventsByPalletIndex = new Map<number, Map<number, EventVariant>>();
+    // Build call lookup: pallet index → Map<call_variant_idx → VariantInfo with field types>
+    const callsByPalletIndex = new Map<number, Map<number, VariantInfo>>();
+    for (const pallet of v.pallets as Array<{ name: string; index: number; calls?: number }>) {
+      if (pallet.calls != null) {
+        const callMap = new Map<number, VariantInfo>();
+        const typeEntry = rawTypes.get(pallet.calls);
+        if (typeEntry && typeEntry.tag === "variant") {
+          for (const variant of typeEntry.value as Array<{
+            name: string;
+            index: number;
+            fields: Array<{ name?: string; type: number }>;
+          }>) {
+            callMap.set(variant.index, {
+              name: variant.name,
+              fields: (variant.fields ?? []).map((f) => ({
+                name: f.name ?? null,
+                typeId: f.type,
+              })),
+            });
+          }
+        }
+        callsByPalletIndex.set(pallet.index, callMap);
+      }
+    }
+
+    // Build event lookup: pallet index → Map<event_variant_idx → VariantInfo>
+    const eventsByPalletIndex = new Map<number, Map<number, VariantInfo>>();
     for (const pallet of v.pallets as Array<{ name: string; index: number; events?: number }>) {
       if (pallet.events != null) {
-        const evtMap = new Map<number, EventVariant>();
+        const evtMap = new Map<number, VariantInfo>();
         const typeEntry = rawTypes.get(pallet.events);
         if (typeEntry && typeEntry.tag === "variant") {
           for (const variant of typeEntry.value as Array<{
@@ -716,7 +814,7 @@ export class ExtrinsicDecoder {
       (v.extrinsic.signedExtensions ?? []) as Array<{ identifier: string }>
     ).map((ext) => ext.identifier);
 
-    return { palletsByIndex, signedExtensions, eventsByPalletIndex, rawTypes };
+    return { palletsByIndex, callsByPalletIndex, signedExtensions, eventsByPalletIndex, rawTypes };
   }
 
   private async rpcCall(method: string, params: unknown[]): Promise<any> {

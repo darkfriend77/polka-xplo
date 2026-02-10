@@ -1,6 +1,7 @@
+import { createRequire } from "node:module";
 import type { PapiClient } from "../client.js";
 import type { PluginRegistry } from "../plugins/registry.js";
-import { processBlock, type RawBlockData } from "./block-processor.js";
+import { processBlock, type RawBlockData, type RawExtrinsic, type RawEvent } from "./block-processor.js";
 import { ExtrinsicDecoder } from "./extrinsic-decoder.js";
 import {
   getLastFinalizedHeight,
@@ -8,6 +9,51 @@ import {
   finalizeBlock,
 } from "@polka-xplo/db";
 import type { BlockStatus, DigestLog } from "@polka-xplo/shared";
+
+// Blake2-256 hash for computing extrinsic tx_hash
+const require2 = createRequire(import.meta.url);
+const { Blake2256 } = require2("@polkadot-api/substrate-bindings") as {
+  Blake2256: (input: Uint8Array) => Uint8Array;
+};
+
+function hexToBytes(hex: string): Uint8Array {
+  const clean = hex.startsWith("0x") ? hex.slice(2) : hex;
+  return new Uint8Array(clean.match(/.{1,2}/g)!.map((b) => parseInt(b, 16)));
+}
+
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes).map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** Compute Blake2-256 hash of a raw extrinsic hex, returning 0x-prefixed hash */
+function computeTxHash(rawHex: string): string {
+  const bytes = hexToBytes(rawHex);
+  return "0x" + bytesToHex(Blake2256(bytes));
+}
+
+/**
+ * Post-process extrinsics with decoded events to fill in success/fee.
+ * Correlates System.ExtrinsicSuccess / ExtrinsicFailed events and
+ * TransactionPayment.TransactionFeePaid events.
+ */
+function enrichExtrinsicsFromEvents(
+  extrinsics: RawExtrinsic[],
+  events: RawEvent[]
+): void {
+  for (const evt of events) {
+    if (evt.extrinsicIndex == null) continue;
+    const ext = extrinsics[evt.extrinsicIndex];
+    if (!ext) continue;
+
+    if (evt.module === "System" && evt.event === "ExtrinsicFailed") {
+      ext.success = false;
+    }
+    if (evt.module === "TransactionPayment" && evt.event === "TransactionFeePaid") {
+      const fee = evt.data?.actual_fee ?? evt.data?.actualFee;
+      if (fee != null) ext.fee = String(fee);
+    }
+  }
+}
 
 /**
  * The Ingestion Pipeline manages the dual-stream architecture:
@@ -219,7 +265,7 @@ export class IngestionPipeline {
       ]);
 
       // Decode extrinsic call info using runtime metadata
-      const lookup = await this.decoder.ensureMetadata(blockHash);
+      const { lookup, specVersion } = await this.decoder.ensureMetadata(blockHash);
       let timestamp: number | null = null;
 
       const extrinsics: RawBlockData["extrinsics"] = body.map(
@@ -234,14 +280,14 @@ export class IngestionPipeline {
 
           return {
             index: i,
-            hash: null,
+            hash: decoded.signer ? computeTxHash(decoded.rawHex) : null,
             signer: decoded.signer,
             module: decoded.module,
             call: decoded.call,
-            args: { raw: encodedExt },
-            success: true,
-            fee: null,
-            tip: null,
+            args: decoded.args,
+            success: true, // will be corrected by enrichExtrinsicsFromEvents
+            fee: null,     // will be filled by enrichExtrinsicsFromEvents
+            tip: decoded.tip,
           };
         }
       );
@@ -256,6 +302,9 @@ export class IngestionPipeline {
         data: evt.data,
         phaseType: evt.phaseType,
       }));
+
+      // Correlate success/fee from events back into extrinsics
+      enrichExtrinsicsFromEvents(extrinsics, events);
 
       const hasRuntimeUpgrade = header.digests.some(
         (d) => d.type === "runtimeUpdated"
@@ -290,7 +339,7 @@ export class IngestionPipeline {
         digestLogs,
         timestamp,
         validatorId: null,
-        specVersion: 0,
+        specVersion,
       };
     } catch (err) {
       console.error(`[Pipeline:${this.chainId}] PAPI fetchBlock failed for #${height}:`, err);
@@ -350,7 +399,7 @@ export class IngestionPipeline {
       const blockNumber = parseInt(header.number, 16);
 
       // Decode extrinsic call info using runtime metadata
-      const lookup = await this.decoder.ensureMetadata(hash);
+      const { lookup, specVersion } = await this.decoder.ensureMetadata(hash);
       let timestamp: number | null = null;
 
       const extrinsics: RawBlockData["extrinsics"] = rawExts.map(
@@ -365,14 +414,14 @@ export class IngestionPipeline {
 
           return {
             index: i,
-            hash: null,
+            hash: decoded.signer ? computeTxHash(decoded.rawHex) : null,
             signer: decoded.signer,
             module: decoded.module,
             call: decoded.call,
-            args: { raw: encodedExt },
-            success: true,
-            fee: null,
-            tip: null,
+            args: decoded.args,
+            success: true, // will be corrected by enrichExtrinsicsFromEvents
+            fee: null,     // will be filled by enrichExtrinsicsFromEvents
+            tip: decoded.tip,
           };
         }
       );
@@ -387,6 +436,9 @@ export class IngestionPipeline {
         data: evt.data,
         phaseType: evt.phaseType,
       }));
+
+      // Correlate success/fee from events back into extrinsics
+      enrichExtrinsicsFromEvents(extrinsics, events);
 
       // Parse legacy RPC digest logs
       const digestLogs: DigestLog[] = (header.digest?.logs ?? []).map(
@@ -404,7 +456,7 @@ export class IngestionPipeline {
         digestLogs,
         timestamp,
         validatorId: null,
-        specVersion: 0,
+        specVersion,
       };
     } catch (err) {
       console.error(`[Pipeline:${this.chainId}] Legacy RPC failed for block #${height}:`, err);
