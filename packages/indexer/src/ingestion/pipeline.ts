@@ -1,6 +1,7 @@
 import type { PapiClient } from "../client.js";
 import type { PluginRegistry } from "../plugins/registry.js";
 import { processBlock, type RawBlockData } from "./block-processor.js";
+import { ExtrinsicDecoder } from "./extrinsic-decoder.js";
 import {
   getLastFinalizedHeight,
   upsertIndexerState,
@@ -27,6 +28,7 @@ export class IngestionPipeline {
   private papiClient: PapiClient;
   private registry: PluginRegistry;
   private chainId: string;
+  private decoder: ExtrinsicDecoder;
   private running = false;
   private finalizedUnsub: (() => void) | null = null;
   private bestUnsub: (() => void) | null = null;
@@ -35,6 +37,7 @@ export class IngestionPipeline {
     this.papiClient = papiClient;
     this.registry = registry;
     this.chainId = papiClient.chainConfig.id;
+    this.decoder = new ExtrinsicDecoder(papiClient.chainConfig.rpc[0]);
   }
 
   /** Start the ingestion pipeline */
@@ -215,18 +218,32 @@ export class IngestionPipeline {
         client.getBlockBody(blockHash),
       ]);
 
+      // Decode extrinsic call info using runtime metadata
+      const lookup = await this.decoder.ensureMetadata(blockHash);
+      let timestamp: number | null = null;
+
       const extrinsics: RawBlockData["extrinsics"] = body.map(
-        (encodedExt, i) => ({
-          index: i,
-          hash: null, // No real tx hash without SCALE decoding
-          signer: null,
-          module: "Unknown",
-          call: "unknown",
-          args: { raw: encodedExt },
-          success: true,
-          fee: null,
-          tip: null,
-        })
+        (encodedExt, i) => {
+          const decoded = this.decoder.decodeCallInfo(encodedExt, lookup);
+          const ts = this.decoder.extractTimestamp(
+            encodedExt,
+            decoded.module,
+            decoded.call
+          );
+          if (ts !== null) timestamp = ts;
+
+          return {
+            index: i,
+            hash: null,
+            signer: decoded.signer,
+            module: decoded.module,
+            call: decoded.call,
+            args: { raw: encodedExt },
+            success: true,
+            fee: null,
+            tip: null,
+          };
+        }
       );
 
       const hasRuntimeUpgrade = header.digests.some(
@@ -246,7 +263,7 @@ export class IngestionPipeline {
         extrinsicsRoot: header.extrinsicRoot,
         extrinsics,
         events: [],
-        timestamp: null,
+        timestamp,
         validatorId: null,
         specVersion: 0,
       };
@@ -307,18 +324,32 @@ export class IngestionPipeline {
       const { header, extrinsics: rawExts } = json.result.block;
       const blockNumber = parseInt(header.number, 16);
 
+      // Decode extrinsic call info using runtime metadata
+      const lookup = await this.decoder.ensureMetadata(hash);
+      let timestamp: number | null = null;
+
       const extrinsics: RawBlockData["extrinsics"] = rawExts.map(
-        (encodedExt, i) => ({
-          index: i,
-          hash: null, // No real tx hash without SCALE decoding
-          signer: null,
-          module: "Unknown",
-          call: "unknown",
-          args: { raw: encodedExt },
-          success: true,
-          fee: null,
-          tip: null,
-        })
+        (encodedExt, i) => {
+          const decoded = this.decoder.decodeCallInfo(encodedExt, lookup);
+          const ts = this.decoder.extractTimestamp(
+            encodedExt,
+            decoded.module,
+            decoded.call
+          );
+          if (ts !== null) timestamp = ts;
+
+          return {
+            index: i,
+            hash: null,
+            signer: decoded.signer,
+            module: decoded.module,
+            call: decoded.call,
+            args: { raw: encodedExt },
+            success: true,
+            fee: null,
+            tip: null,
+          };
+        }
       );
 
       return {
@@ -329,7 +360,7 @@ export class IngestionPipeline {
         extrinsicsRoot: header.extrinsicsRoot,
         extrinsics,
         events: [],
-        timestamp: null,
+        timestamp,
         validatorId: null,
         specVersion: 0,
       };
