@@ -101,9 +101,11 @@ export interface ExtrinsicsResponse {
 
 export async function getExtrinsics(
   limit = 25,
-  offset = 0
+  offset = 0,
+  signedOnly = false
 ): Promise<ExtrinsicsResponse> {
-  return fetchJson(`/api/extrinsics?limit=${limit}&offset=${offset}`);
+  const params = `limit=${limit}&offset=${offset}${signedOnly ? "&signed=true" : ""}`;
+  return fetchJson(`/api/extrinsics?${params}`);
 }
 
 // ---- Events ----

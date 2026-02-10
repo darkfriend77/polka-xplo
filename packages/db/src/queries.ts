@@ -160,15 +160,18 @@ export async function getExtrinsicsByBlock(
 
 export async function getExtrinsicsList(
   limit = 25,
-  offset = 0
+  offset = 0,
+  signedOnly = false
 ): Promise<{ data: Extrinsic[]; total: number }> {
+  const whereData = signedOnly ? `WHERE signer IS NOT NULL` : ``;
+  const whereCount = signedOnly ? `WHERE signer IS NOT NULL` : ``;
   const [dataRes, countRes] = await Promise.all([
     query<Record<string, unknown>>(
       `SELECT id, block_height, tx_hash, index, signer, module, call, args, success, fee, tip
-       FROM extrinsics ORDER BY block_height DESC, index DESC LIMIT $1 OFFSET $2`,
+       FROM extrinsics ${whereData} ORDER BY block_height DESC, index DESC LIMIT $1 OFFSET $2`,
       [limit, offset]
     ),
-    query<{ count: string }>(`SELECT COUNT(*) AS count FROM extrinsics`),
+    query<{ count: string }>(`SELECT COUNT(*) AS count FROM extrinsics ${whereCount}`),
   ]);
   return {
     data: dataRes.rows.map(mapExtrinsic),

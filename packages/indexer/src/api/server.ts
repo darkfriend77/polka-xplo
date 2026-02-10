@@ -278,7 +278,8 @@ export function createApiServer(
     try {
       const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 25, 1), 100);
       const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
-      const result = await getExtrinsicsList(limit, offset);
+      const signedOnly = req.query.signed === "true";
+      const result = await getExtrinsicsList(limit, offset, signedOnly);
       const page = Math.floor(offset / limit) + 1;
       res.json({
         data: result.data,
