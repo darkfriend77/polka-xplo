@@ -9,14 +9,14 @@
 
 The project is architecturally sound — TypeScript monorepo with clean package boundaries, dual-stream ingestion, a plugin system, and a well-structured Next.js 15 frontend. The codebase is production-viable today for single-chain explorers with moderate traffic.
 
-This review identifies **23 findings** (4 fixed ✅, 19 remaining) with the following priority distribution:
+This review identifies **23 findings** (12 fixed ✅, 11 remaining) with the following priority distribution:
 
 | Priority | Count | Fixed | Remaining |
 |----------|-------|-------|-----------|
 | 🔴 Critical | 3 | 1 ✅ | 2 |
 | 🟠 High | 5 | 2 ✅ | 3 |
-| 🟡 Medium | 8 | 1 ✅ | 7 |
-| 🟢 Low | 7 | 0 | 7 |
+| 🟡 Medium | 8 | 4 ✅ | 4 |
+| 🟢 Low | 7 | 5 ✅ | 2 |
 
 ---
 
@@ -151,26 +151,10 @@ app.use('/api/', rateLimit({ windowMs: 60_000, max: 200 }));
 
 ---
 
-### M2. No Security Headers on Web Frontend
+### ~~M2. No Security Headers on Web Frontend~~ ✅ FIXED
 
 **File:** `packages/web/next.config.js`  
-**Impact:** Missing standard security protections for a public web app
-
-No `Content-Security-Policy`, `X-Frame-Options`, `X-Content-Type-Options`, or `Referrer-Policy` headers are configured. This is especially relevant for a block explorer that renders arbitrary hex data and JSONB event payloads.
-
-**Fix:** Add headers in Next.js config:
-```javascript
-async headers() {
-  return [{
-    source: '/(.*)',
-    headers: [
-      { key: 'X-Frame-Options', value: 'DENY' },
-      { key: 'X-Content-Type-Options', value: 'nosniff' },
-      { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
-    ]
-  }];
-}
-```
+**Status:** Fixed — added `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, and `Permissions-Policy` headers. Also removed dead `experimental.serverActions` config (L7).
 
 ---
 
@@ -216,35 +200,17 @@ The indexer stores accounts using the hex public key returned by PAPI (e.g., `0x
 
 ---
 
-### M7. Synchronous Filesystem Operations in Extension Discovery
+### ~~M7. Synchronous Filesystem Operations in Extension Discovery~~ ✅ FIXED
 
 **File:** `packages/indexer/src/plugins/registry.ts` → `discover()`  
-**Impact:** Blocks the Node.js event loop during startup
-
-`fs.readdirSync`, `fs.readFileSync`, and `fs.existsSync` are used in an `async` function. While this only affects startup time (not steady-state), it's a bad pattern that could cause issues if called at runtime.
-
-**Fix:** Replace with `fs.promises.readdir`, `fs.promises.readFile`, `fs.access`.
+**Status:** Fixed — replaced `fs.existsSync`, `fs.readdirSync`, `fs.readFileSync` with async `fs/promises` equivalents (`access`, `readdir`, `readFile`).
 
 ---
 
-### M8. `/api/transfers` Inconsistent Response Shape
+### ~~M8. `/api/transfers` Inconsistent Response Shape~~ ✅ FIXED
 
 **File:** `packages/indexer/src/api/server.ts` → `/api/transfers`  
-**Impact:** Frontend must handle two different response shapes
-
-```typescript
-if (offset === 0 && limit <= 50 && !req.query.offset) {
-  const transfers = await getLatestTransfers(limit);
-  res.json(transfers); // Returns: TransferSummary[]
-} else {
-  const result = await getTransfersList(limit, offset);
-  res.json({ data, total, page, pageSize, hasMore }); // Returns: paginated object
-}
-```
-
-The homepage card gets a flat array, while the list page gets a paginated wrapper. This requires the frontend to handle both shapes.
-
-**Fix:** Always return the paginated shape. The homepage card can trivially read `.data` from the response.
+**Status:** Fixed — removed dual code path; endpoint always returns paginated `{ data, total, page, pageSize, hasMore }`. Frontend `getTransfers()` updated to extract `.data` from response.
 
 ---
 
@@ -265,48 +231,31 @@ There are no test files, no test runner (Jest, Vitest, etc.), and no test script
 
 ---
 
-### L2. Docker Indexer Uses Alpine (V8 Compatibility Risk)
+### ~~L2. Docker Indexer Uses Alpine (V8 Compatibility Risk)~~ ✅ FIXED
 
 **File:** `Dockerfile.indexer`  
-**Impact:** Potential V8/musl crashes under memory pressure
-
-The indexer Dockerfile uses `node:20-alpine`. Alpine's musl libc has known issues with V8's memory management under high load, which we previously encountered and fixed in the web Dockerfile (switched to `node:20-slim`). The indexer, which does heavy SCALE decoding and concurrent RPC calls, is more likely to hit this.
-
-**Fix:** Change `Dockerfile.indexer` from `node:20-alpine` to `node:20-slim` for consistency.
+**Status:** Fixed — switched both build and runner stages from `node:20-alpine` to `node:20-slim`, matching `Dockerfile.web`.
 
 ---
 
-### L3. Missing `export const dynamic` on Data Pages
+### ~~L3. Missing `export const dynamic` on Data Pages~~ ✅ FIXED
 
-**Files:** `packages/web/src/app/blocks/page.tsx`, `events/page.tsx`, `transfers/page.tsx`, etc.  
-**Impact:** Next.js may accidentally cache dynamic pages
-
-Server Components that fetch data at request time should explicitly opt out of static generation. Without `export const dynamic = "force-dynamic"`, Next.js could cache these pages during build, serving stale data.
-
-Only `status/page.tsx` correctly uses this flag.
-
-**Fix:** Add `export const dynamic = "force-dynamic"` to all data-fetching pages.
+**Files:** All 12 data-fetching pages in `packages/web/src/app/`  
+**Status:** Fixed — added `export const dynamic = "force-dynamic"` to homepage, blocks, events, extrinsics, transfers, accounts, logs, runtime, block/[id], extrinsic/[hash], account/[address], and chain-state pages.
 
 ---
 
-### L4. `Pagination` Uses `useCallback` Instead of `useMemo`
+### ~~L4. `Pagination` Uses `useCallback` Instead of `useMemo`~~ ✅ FIXED
 
 **File:** `packages/web/src/components/Pagination.tsx`  
-**Impact:** Semantic incorrectness (functional, not broken)
-
-`getPageNumbers` is wrapped in `useCallback` but it's a derived computation (like a computed property), not a callback passed to children. `useMemo` is semantically correct:
-```typescript
-const pageNumbers = useMemo(() => computePageNumbers(currentPage, totalPages), [currentPage, totalPages]);
-```
+**Status:** Fixed — replaced `useCallback` + call with `useMemo` that computes page numbers directly.
 
 ---
 
-### L5. No `"type": "module"` in Root `package.json`
+### ~~L5. No `"type": "module"` in Root `package.json`~~ ✅ FIXED
 
 **File:** `package.json` (root)  
-**Impact:** Fragile ESM resolution
-
-The codebase uses ESM throughout (`import.meta.url`, `import()`, etc.) but the root `package.json` doesn't declare `"type": "module"`. This works because each sub-package likely has its own `"type": "module"`, but it's fragile — any new file at the root level would default to CJS.
+**Status:** Fixed — added `"type": "module"` to root `package.json`.
 
 ---
 
@@ -319,12 +268,10 @@ Several patterns in the codebase access array elements by index without null che
 
 ---
 
-### L7. Dead Config in `next.config.js`
+### ~~L7. Dead Config in `next.config.js`~~ ✅ FIXED
 
 **File:** `packages/web/next.config.js`  
-**Impact:** Confusion about whether Server Actions are used
-
-`serverActions.bodySizeLimit: "2mb"` is configured but no Server Actions are used anywhere in the web package. This should be removed to avoid implying a feature that doesn't exist.
+**Status:** Fixed — removed `experimental.serverActions` block (addressed together with M2 security headers).
 
 ---
 
@@ -369,16 +316,16 @@ The current architecture is appropriate for chains with < 10M blocks. Beyond tha
 5. C3 — Wrap extension migrations in transactions
 6. H4 — Replace `<a>` with Next.js `<Link>`
 7. H3 — Fix SS58 prefix re-encoding
-8. L2 — Switch indexer Dockerfile to `node:20-slim`
-9. M8 — Normalize `/api/transfers` response shape
+8. ~~L2 — Switch indexer Dockerfile to `node:20-slim`~~ ✅
+9. ~~M8 — Normalize `/api/transfers` response shape~~ ✅
 
 **Medium-term (next major version):**
 10. H5 — Implement COUNT caching / approximate counts
 11. M1 — Add API rate limiting
-12. M2 — Configure security headers
+12. ~~M2 — Configure security headers~~ ✅
 13. C2 — Validate extension manifests with JSON Schema
 14. L1 — Add test suite (Vitest)
 15. M4 — Extract shared block processing logic
 
 **Nice-to-have:**
-16. M3, M5, M7, L3–L7
+16. M3, M5, ~~M7~~ ✅, ~~L3~~ ✅, ~~L4~~ ✅, ~~L5~~ ✅, L6, ~~L7~~ ✅

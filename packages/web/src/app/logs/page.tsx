@@ -2,6 +2,8 @@ import { getLogs, type LogsResponse } from "@/lib/api";
 import { LogsTable } from "@/components/LogsTable";
 import { Pagination } from "@/components/Pagination";
 
+export const dynamic = "force-dynamic";
+
 /**
  * Logs list page — paginated table of all block digest logs.
  */

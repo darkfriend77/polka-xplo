@@ -3,6 +3,8 @@ import { TransfersTable } from "@/components/TransfersTable";
 import { Pagination } from "@/components/Pagination";
 import { theme } from "@/lib/theme";
 
+export const dynamic = "force-dynamic";
+
 /**
  * Transfers list page — paginated table of all balance transfer events.
  */

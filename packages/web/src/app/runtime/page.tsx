@@ -5,6 +5,8 @@ import {
   type RuntimeSummary,
 } from "@/lib/api";
 
+export const dynamic = "force-dynamic";
+
 /**
  * Runtime Modules page — shows all pallets for a given spec version
  * with their call, event, storage, constant, and error counts.

@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 /**
  * Chain State Browser — Generic State Map Viewer
  *

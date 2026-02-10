@@ -3,6 +3,8 @@ import { theme } from "@/lib/theme";
 import { AccountsTable } from "@/components/AccountsTable";
 import { Pagination } from "@/components/Pagination";
 
+export const dynamic = "force-dynamic";
+
 /**
  * Accounts list page — paginated ranked list of accounts.
  * Mirrors the statescan accounts view with rank, address, balance, and extrinsic count.

@@ -21,7 +21,6 @@ import {
   getIndexerState,
   searchByHash,
   getChainStats,
-  getLatestTransfers,
   getTransfersList,
   getDatabaseSize,
   getSpecVersions,
@@ -717,21 +716,15 @@ export function createApiServer(
     try {
       const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 25, 1), 100);
       const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
-      // If offset=0 and limit<=50, use old fast path for homepage card; otherwise paginated
-      if (offset === 0 && limit <= 50 && !req.query.offset) {
-        const transfers = await getLatestTransfers(limit);
-        res.json(transfers);
-      } else {
-        const result = await getTransfersList(limit, offset);
-        const page = Math.floor(offset / limit) + 1;
-        res.json({
-          data: result.data,
-          total: result.total,
-          page,
-          pageSize: limit,
-          hasMore: offset + limit < result.total,
-        });
-      }
+      const result = await getTransfersList(limit, offset);
+      const page = Math.floor(offset / limit) + 1;
+      res.json({
+        data: result.data,
+        total: result.total,
+        page,
+        pageSize: limit,
+        hasMore: offset + limit < result.total,
+      });
     } catch (err) {
       res.status(500).json({ error: "Failed to fetch transfers" });
     }

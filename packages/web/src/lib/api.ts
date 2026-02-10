@@ -251,7 +251,8 @@ export interface TransferSummary {
 }
 
 export async function getTransfers(limit = 10): Promise<TransferSummary[]> {
-  return fetchJson(`/api/transfers?limit=${limit}`);
+  const res: TransfersResponse = await fetchJson(`/api/transfers?limit=${limit}`);
+  return res.data;
 }
 
 export interface TransfersResponse {

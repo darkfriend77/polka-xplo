@@ -10,6 +10,8 @@ import {
   timeAgo,
 } from "@/lib/format";
 
+export const dynamic = "force-dynamic";
+
 /**
  * Block Detail Page — Server Component
  * Renders block header, extrinsics table, and event list.

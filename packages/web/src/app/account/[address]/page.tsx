@@ -4,6 +4,8 @@ import { AddressDisplay } from "@/components/AddressDisplay";
 import { formatNumber, formatBalance } from "@/lib/format";
 import { theme } from "@/lib/theme";
 
+export const dynamic = "force-dynamic";
+
 /**
  * Account Detail Page — Server Component
  * Matches statescan account view: address header, balance breakdown,

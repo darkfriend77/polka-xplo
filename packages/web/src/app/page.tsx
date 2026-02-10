@@ -12,6 +12,8 @@ import { LatestBlocksCard } from "@/components/LatestBlocksCard";
 import { LatestTransfersCard } from "@/components/LatestTransfersCard";
 import { theme } from "@/lib/theme";
 
+export const dynamic = "force-dynamic";
+
 /**
  * Home page: statescan-style dashboard with stats bar,
  * latest blocks, and latest signed transfers.

@@ -9,6 +9,8 @@ import {
   timeAgo,
 } from "@/lib/format";
 
+export const dynamic = "force-dynamic";
+
 /** Convert PascalCase to camelCase */
 function toCamelCase(s: string): string {
   return s.charAt(0).toLowerCase() + s.slice(1);

@@ -2,6 +2,8 @@ import { getEvents, type EventsResponse } from "@/lib/api";
 import { EventsTable } from "@/components/EventsTable";
 import { Pagination } from "@/components/Pagination";
 
+export const dynamic = "force-dynamic";
+
 /**
  * Events list page — paginated table of all events, with optional module filter.
  */

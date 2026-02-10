@@ -3,6 +3,8 @@ import { ExtrinsicsTable } from "@/components/ExtrinsicsTable";
 import { Pagination } from "@/components/Pagination";
 import { theme } from "@/lib/theme";
 
+export const dynamic = "force-dynamic";
+
 /**
  * Extrinsics list page — paginated table of all extrinsics.
  * Supports ?signed=true to hide unsigned (inherent) extrinsics.

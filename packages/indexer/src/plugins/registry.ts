@@ -1,4 +1,4 @@
-import fs from "node:fs";
+import fs from "node:fs/promises";
 import path from "node:path";
 import type {
   PalletExtension,
@@ -24,24 +24,28 @@ export class PluginRegistry {
 
   /** Discover and load extensions from the extensions directory */
   async discover(extensionsDir: string): Promise<void> {
-    if (!fs.existsSync(extensionsDir)) {
+    try {
+      await fs.access(extensionsDir);
+    } catch {
       console.log("[Registry] No extensions directory found. Using defaults only.");
       return;
     }
 
-    const entries = fs.readdirSync(extensionsDir, { withFileTypes: true });
+    const entries = await fs.readdir(extensionsDir, { withFileTypes: true });
 
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
 
       const manifestPath = path.join(extensionsDir, entry.name, "manifest.json");
-      if (!fs.existsSync(manifestPath)) {
+      try {
+        await fs.access(manifestPath);
+      } catch {
         console.warn(`[Registry] Skipping ${entry.name}: no manifest.json`);
         continue;
       }
 
       try {
-        const manifestRaw = fs.readFileSync(manifestPath, "utf-8");
+        const manifestRaw = await fs.readFile(manifestPath, "utf-8");
         const manifest: ExtensionManifest = JSON.parse(manifestRaw);
 
         console.log(`[Registry] Found extension: ${manifest.name} (${manifest.id})`);
@@ -56,7 +60,13 @@ export class PluginRegistry {
 
         let extension: PalletExtension = { manifest };
 
-        if (fs.existsSync(handlerPath)) {
+        let handlerExists = false;
+        try {
+          await fs.access(handlerPath);
+          handlerExists = true;
+        } catch {}
+
+        if (handlerExists) {
           const module = await import(handlerPath);
           extension = {
             manifest,

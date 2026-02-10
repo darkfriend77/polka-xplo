@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useCallback, type FormEvent } from "react";
+import { useState, useMemo, type FormEvent } from "react";
 
 interface PaginationProps {
   currentPage: number;
@@ -36,8 +36,8 @@ export function Pagination({ currentPage, totalPages, basePath, extraParams }: P
 
   const url = (p: number) => buildUrl(basePath, p, extraParams);
 
-  /** Generate the array of page numbers + ellipsis markers to render */
-  const getPageNumbers = useCallback((): (number | "ellipsis")[] => {
+  /** Page numbers + ellipsis markers to render */
+  const pageNumbers = useMemo((): (number | "ellipsis")[] => {
     const pages: (number | "ellipsis")[] = [];
 
     if (totalPages <= 9) {
@@ -70,8 +70,6 @@ export function Pagination({ currentPage, totalPages, basePath, extraParams }: P
   };
 
   if (totalPages <= 1) return null;
-
-  const pageNumbers = getPageNumbers();
 
   return (
     <div className="flex flex-col items-center gap-3 text-sm">

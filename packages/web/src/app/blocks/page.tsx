@@ -2,6 +2,8 @@ import { getBlocks, type BlocksResponse } from "@/lib/api";
 import { BlocksTable } from "@/components/BlocksTable";
 import { Pagination } from "@/components/Pagination";
 
+export const dynamic = "force-dynamic";
+
 /**
  * Blocks list page — paginated table of all indexed blocks.
  */
