@@ -1,6 +1,6 @@
 # Polka-Xplo — Architecture Review & Issue Tracker
 
-**Date:** February 10, 2026  
+**Date:** February 10, 2026
 **Scope:** Full codebase review — `packages/shared`, `packages/db`, `packages/indexer`, `packages/web`, Docker, and configuration.
 
 ---
@@ -24,14 +24,14 @@ This review identifies **23 findings** (12 fixed ✅, 11 remaining) with the fol
 
 ### ~~C1. Race Condition in Backfill Concurrency~~ ✅ FIXED
 
-**File:** `packages/indexer/src/ingestion/pipeline.ts` → `runWithConcurrency()`  
+**File:** `packages/indexer/src/ingestion/pipeline.ts` → `runWithConcurrency()`
 **Status:** Fixed — replaced shared mutable index with work-stealing queue (`queue.shift()`).
 
 ---
 
 ### C2. Extension Code Execution Without Sandboxing
 
-**File:** `packages/indexer/src/plugins/registry.ts`  
+**File:** `packages/indexer/src/plugins/registry.ts`
 **Impact:** Arbitrary code execution + SQL injection via extensions
 
 1. `await import(handlerPath)` loads JavaScript from disk with full Node.js privileges — a malicious extension could access the database, filesystem, network, or environment variables.
@@ -51,7 +51,7 @@ This review identifies **23 findings** (12 fixed ✅, 11 remaining) with the fol
 
 ### C3. Extension Migrations Not Transactional
 
-**File:** `packages/indexer/src/plugins/registry.ts` → `runMigrations()`  
+**File:** `packages/indexer/src/plugins/registry.ts` → `runMigrations()`
 **Impact:** Partial schema corruption on migration failure
 
 If an extension's migration SQL partially succeeds (e.g., first table created, second fails), the `extension_migrations` record is never inserted. On retry, the registry attempts the full migration again, hitting `CREATE TABLE` conflicts or, worse, `ALTER TABLE` errors that leave the schema in an unrecoverable state.
@@ -73,21 +73,21 @@ await transaction(async (client) => {
 
 ### ~~H1. No Pipeline Reconnection on Stream Error~~ ✅ FIXED
 
-**File:** `packages/indexer/src/ingestion/pipeline.ts` → `subscribeFinalized()`, `subscribeBestHead()`  
+**File:** `packages/indexer/src/ingestion/pipeline.ts` → `subscribeFinalized()`, `subscribeBestHead()`
 **Status:** Fixed — both subscriptions now auto-reconnect with exponential backoff (1s → 60s cap), retry counter resets on successful block.
 
 ---
 
 ### ~~H2. `hexToBytes` Crashes on Empty Hex Input~~ ✅ FIXED
 
-**Files:** `packages/indexer/src/ingestion/pipeline.ts`, `packages/indexer/src/ingestion/extrinsic-decoder.ts`, `packages/indexer/src/runtime-parser.ts`  
+**Files:** `packages/indexer/src/ingestion/pipeline.ts`, `packages/indexer/src/ingestion/extrinsic-decoder.ts`, `packages/indexer/src/runtime-parser.ts`
 **Status:** Fixed — added `if (!clean) return new Uint8Array(0);` guard in all 3 copies.
 
 ---
 
 ### H3. SS58 Prefix Switching Is a No-Op
 
-**File:** `packages/web/src/lib/ss58-context.tsx` → `formatAddress()`  
+**File:** `packages/web/src/lib/ss58-context.tsx` → `formatAddress()`
 **Impact:** Address display doesn't update when user changes SS58 prefix
 
 The `formatAddress` function detects "already SS58" addresses and passes them through unchanged. When a user switches the prefix selector (e.g., from Ajuna 1328 to generic 42), displayed SS58 addresses on-screen don't re-encode — they remain in the original prefix format.
@@ -104,7 +104,7 @@ if (!raw.startsWith("0x")) {
 
 ### H4. Full Page Reloads on All Navigation
 
-**Files:** `packages/web/src/components/HeaderNav.tsx`, `Pagination.tsx`, `LatestBlocksCard.tsx`, `LatestTransfersCard.tsx`, various page links  
+**Files:** `packages/web/src/components/HeaderNav.tsx`, `Pagination.tsx`, `LatestBlocksCard.tsx`, `LatestTransfersCard.tsx`, various page links
 **Impact:** Poor UX — every click does full page reload, losing client state
 
 All internal links use plain `<a href="...">` instead of Next.js `<Link>` component. This bypasses the App Router's client-side navigation, triggering full page reloads on every click. Users lose scroll position, SS58 prefix selection resets, and the browser re-fetches all JavaScript bundles.
@@ -120,7 +120,7 @@ import Link from "next/link";
 
 ### H5. `COUNT(*)` on Large Tables Without Caching
 
-**File:** `packages/db/src/queries.ts` — all list queries  
+**File:** `packages/db/src/queries.ts` — all list queries
 **Impact:** Slow pagination on tables with millions of rows
 
 Every paginated query runs a parallel `SELECT COUNT(*) FROM [table]`. On PostgreSQL, `COUNT(*)` does a full sequential scan (no index-only optimization). At millions of blocks/events/extrinsics, this becomes the dominant query cost — often taking 2-10 seconds.
@@ -137,7 +137,7 @@ Every paginated query runs a parallel `SELECT COUNT(*) FROM [table]`. On Postgre
 
 ### M1. No Rate Limiting on API Endpoints
 
-**File:** `packages/indexer/src/api/server.ts`  
+**File:** `packages/indexer/src/api/server.ts`
 **Impact:** API abuse / DoS vector
 
 The Express API has no rate limiting. A single client can flood `/api/blocks?limit=100` or `/api/search` with rapid requests, overwhelming the database connection pool (max 20).
@@ -152,14 +152,14 @@ app.use('/api/', rateLimit({ windowMs: 60_000, max: 200 }));
 
 ### ~~M2. No Security Headers on Web Frontend~~ ✅ FIXED
 
-**File:** `packages/web/next.config.js`  
+**File:** `packages/web/next.config.js`
 **Status:** Fixed — added `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, and `Permissions-Policy` headers. Also removed dead `experimental.serverActions` config (L7).
 
 ---
 
 ### M3. Unbounded Runtime Metadata Cache
 
-**File:** `packages/indexer/src/runtime-parser.ts`  
+**File:** `packages/indexer/src/runtime-parser.ts`
 **Impact:** Memory leak over long-running indexer uptimes
 
 `runtimeCache` is a module-level `Map<number, RuntimeSummary>` with no eviction policy. Each cached entry holds a full pallet metadata summary. Over months of uptime with many spec versions encountered during backfill, this grows unbounded.
@@ -170,7 +170,7 @@ app.use('/api/', rateLimit({ windowMs: 60_000, max: 200 }));
 
 ### M4. Duplicate Code Between PAPI and Legacy RPC Block Fetch
 
-**File:** `packages/indexer/src/ingestion/pipeline.ts`  
+**File:** `packages/indexer/src/ingestion/pipeline.ts`
 **Impact:** Maintenance burden — same logic duplicated in two methods
 
 `fetchBlockViaPapi()` and `fetchBlockViaLegacyRpc()` contain nearly identical extrinsic mapping, event decoding, and enrichment code. When either code path needs a fix, the other must be updated too.
@@ -181,7 +181,7 @@ app.use('/api/', rateLimit({ windowMs: 60_000, max: 200 }));
 
 ### M5. Accounts Stored with Hex Public Key, Not SS58
 
-**File:** `packages/indexer/src/ingestion/block-processor.ts`, `packages/db/src/queries.ts`  
+**File:** `packages/indexer/src/ingestion/block-processor.ts`, `packages/db/src/queries.ts`
 **Impact:** Account address format mismatch between indexer and frontend
 
 The indexer stores accounts using the hex public key returned by PAPI (e.g., `0x1234...`). The frontend then re-encodes these for display, but search and API lookups require callers to know the hex key. This creates a UX issue: users searching with an SS58 address must have it normalized through `normalizeAddress()`, and cross-referencing with other explorers (Subscan, Statescan) that use SS58 as the canonical key fails.
@@ -194,21 +194,21 @@ The indexer stores accounts using the hex public key returned by PAPI (e.g., `0x
 
 ### ~~M6. Inconsistent Pagination Page Numbering~~ ✅ FIXED
 
-**Files:** `packages/indexer/src/api/server.ts`  
+**Files:** `packages/indexer/src/api/server.ts`
 **Status:** Fixed — all endpoints now use 1-based page: `Math.floor(offset / limit) + 1`.
 
 ---
 
 ### ~~M7. Synchronous Filesystem Operations in Extension Discovery~~ ✅ FIXED
 
-**File:** `packages/indexer/src/plugins/registry.ts` → `discover()`  
+**File:** `packages/indexer/src/plugins/registry.ts` → `discover()`
 **Status:** Fixed — replaced `fs.existsSync`, `fs.readdirSync`, `fs.readFileSync` with async `fs/promises` equivalents (`access`, `readdir`, `readFile`).
 
 ---
 
 ### ~~M8. `/api/transfers` Inconsistent Response Shape~~ ✅ FIXED
 
-**File:** `packages/indexer/src/api/server.ts` → `/api/transfers`  
+**File:** `packages/indexer/src/api/server.ts` → `/api/transfers`
 **Status:** Fixed — removed dual code path; endpoint always returns paginated `{ data, total, page, pageSize, hasMore }`. Frontend `getTransfers()` updated to extract `.data` from response.
 
 ---
@@ -217,7 +217,7 @@ The indexer stores accounts using the hex public key returned by PAPI (e.g., `0x
 
 ### ~~L1. No Test Suite~~ ✅ FIXED
 
-**Files:** Root `package.json`, all packages  
+**Files:** Root `package.json`, all packages
 **Status:** Fixed — Added Vitest test suite with 84 tests across 5 test files:
 - `packages/indexer/src/__tests__/hex-utils.test.ts` — `hexToBytes`, `bytesToHex` round-trip tests
 - `packages/indexer/src/__tests__/event-utils.test.ts` — `enrichExtrinsicsFromEvents`, `extractAccountsFromEvent` tests
@@ -232,35 +232,35 @@ Also extracted `hexToBytes`/`bytesToHex` to a shared `hex-utils.ts` module (dedu
 
 ### ~~L2. Docker Indexer Uses Alpine (V8 Compatibility Risk)~~ ✅ FIXED
 
-**File:** `Dockerfile.indexer`  
+**File:** `Dockerfile.indexer`
 **Status:** Fixed — switched both build and runner stages from `node:20-alpine` to `node:20-slim`, matching `Dockerfile.web`.
 
 ---
 
 ### ~~L3. Missing `export const dynamic` on Data Pages~~ ✅ FIXED
 
-**Files:** All 12 data-fetching pages in `packages/web/src/app/`  
+**Files:** All 12 data-fetching pages in `packages/web/src/app/`
 **Status:** Fixed — added `export const dynamic = "force-dynamic"` to homepage, blocks, events, extrinsics, transfers, accounts, logs, runtime, block/[id], extrinsic/[hash], account/[address], and chain-state pages.
 
 ---
 
 ### ~~L4. `Pagination` Uses `useCallback` Instead of `useMemo`~~ ✅ FIXED
 
-**File:** `packages/web/src/components/Pagination.tsx`  
+**File:** `packages/web/src/components/Pagination.tsx`
 **Status:** Fixed — replaced `useCallback` + call with `useMemo` that computes page numbers directly.
 
 ---
 
 ### ~~L5. No `"type": "module"` in Root `package.json`~~ ✅ FIXED
 
-**File:** `package.json` (root)  
+**File:** `package.json` (root)
 **Status:** Fixed — added `"type": "module"` to root `package.json`.
 
 ---
 
 ### L6. `noUncheckedIndexedAccess` Not Enabled
 
-**File:** `tsconfig.base.json`  
+**File:** `tsconfig.base.json`
 **Impact:** Potential undefined access bugs not caught at compile time
 
 Several patterns in the codebase access array elements by index without null checks (e.g., `extrinsics[evt.extrinsicIndex]` in pipeline.ts). Enabling `"noUncheckedIndexedAccess": true` would catch these at compile time.
@@ -269,7 +269,7 @@ Several patterns in the codebase access array elements by index without null che
 
 ### ~~L7. Dead Config in `next.config.js`~~ ✅ FIXED
 
-**File:** `packages/web/next.config.js`  
+**File:** `packages/web/next.config.js`
 **Status:** Fixed — removed `experimental.serverActions` block (addressed together with M2 security headers).
 
 ---
