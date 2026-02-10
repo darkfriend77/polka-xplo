@@ -11,3 +11,24 @@ docker-data/
 *.md
 spec.txt
 LICENSE
+
+# Dev tooling
+.editorconfig
+.prettierrc
+.prettierignore
+eslint.config.js
+vitest.config.ts
+coverage/
+
+# Tests
+**/__tests__/
+**/*.test.ts
+**/*.spec.ts
+
+# IDE
+.vscode/
+.idea/
+
+# Docker (don't copy Dockerfiles into the build context)
+Dockerfile.*
+docker-compose*.yml
