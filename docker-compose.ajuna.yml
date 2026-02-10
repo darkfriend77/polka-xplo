@@ -1,0 +1,13 @@
+# Docker Compose override for Ajuna Network
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.ajuna.yml up -d
+#
+# This overrides the default Polkadot configuration to point at
+# the Ajuna Network parachain RPC endpoint.
+
+services:
+  explorer-indexer:
+    environment:
+      ARCHIVE_NODE_URL: wss://rpc-para.ajuna.network
+      CHAIN_ID: ajuna

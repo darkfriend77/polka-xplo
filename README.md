@@ -6,8 +6,204 @@ Polka-Xplo ingests, indexes, and serves blockchain data (blocks, extrinsics, eve
 
 ---
 
+## Quick Start: Explore Ajuna Network in 5 Minutes
+
+This walkthrough launches a fully working explorer for [Ajuna Network](https://ajuna.io/), a Polkadot parachain, using `wss://rpc-para.ajuna.network`. The same steps work for **any** Substrate chain -- just swap the RPC endpoint and chain ID.
+
+### Option A: Docker (recommended -- zero local tooling needed)
+
+> **Prerequisites:** Docker and Docker Compose installed.
+
+**1. Clone and enter the repo**
+
+```bash
+git clone https://github.com/10igma/polka-xplo.git
+cd polka-xplo
+```
+
+**2. Launch the entire stack for Ajuna Network**
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.ajuna.yml up -d
+```
+
+This starts four containers:
+
+| Container             | Port | What it does                              |
+|-----------------------|------|-------------------------------------------|
+| `polka-xplo-db`      | 5432 | PostgreSQL database                       |
+| `polka-xplo-redis`   | 6379 | Redis queue                               |
+| `polka-xplo-indexer`  | 3001 | Connects to `wss://rpc-para.ajuna.network`, indexes blocks, serves REST API |
+| `polka-xplo-web`     | 3000 | Next.js frontend                          |
+
+**3. Open the explorer**
+
+Open [http://localhost:3000](http://localhost:3000) in your browser. The indexer begins syncing from the chain tip immediately -- you'll see Ajuna blocks, extrinsics, and events populating in real time.
+
+**4. Verify the indexer is connected**
+
+```bash
+curl http://localhost:3001/health
+```
+
+Expected response:
+
+```json
+{
+  "status": "healthy",
+  "nodeConnected": true,
+  "dbConnected": true,
+  "chainTip": 8250000,
+  "indexedTip": 8249998,
+  "syncLag": 2
+}
+```
+
+**5. Try the API**
+
+```bash
+# Latest blocks
+curl http://localhost:3001/api/blocks?limit=5
+
+# Search for a block by number
+curl http://localhost:3001/api/search?q=100000
+
+# View chain-scoped page in the browser
+open http://localhost:3000/chain/ajuna
+```
+
+**6. Stop the stack**
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.ajuna.yml down
+```
+
+To also delete all indexed data:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.ajuna.yml down -v
+```
+
+---
+
+### Option B: Local Development (for hacking on the code)
+
+> **Prerequisites:** Node.js >= 20, npm >= 10, Docker (for Postgres + Redis).
+
+**1. Clone and install**
+
+```bash
+git clone https://github.com/10igma/polka-xplo.git
+cd polka-xplo
+npm install
+```
+
+**2. Start Postgres and Redis**
+
+```bash
+docker compose up -d explorer-db explorer-redis
+```
+
+**3. Configure environment for Ajuna**
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` and set the Ajuna RPC and chain ID:
+
+```bash
+# .env
+DATABASE_URL=postgresql://polkaxplo:polkaxplo@localhost:5432/polkaxplo
+REDIS_URL=redis://localhost:6379
+
+# --- Point at Ajuna Network ---
+ARCHIVE_NODE_URL=wss://rpc-para.ajuna.network
+CHAIN_ID=ajuna
+
+BATCH_SIZE=100
+WORKER_CONCURRENCY=4
+
+NEXT_PUBLIC_API_URL=http://localhost:3001
+NEXT_PUBLIC_WS_URL=ws://localhost:3001
+```
+
+**4. Run database migrations**
+
+```bash
+npm run db:migrate
+```
+
+**5. Start the indexer** (connects to Ajuna and begins syncing)
+
+```bash
+npm run indexer:start
+```
+
+You'll see output like:
+
+```
+====================================
+  Polka-Xplo Indexer Starting...
+====================================
+[Main] Database pool initialized.
+[Main] Chain: Ajuna Network (ajuna)
+[Main] Extensions loaded: 1
+[Main] Connected to wss://rpc-para.ajuna.network
+[Pipeline:ajuna] Starting ingestion pipeline...
+[Pipeline:ajuna] Backfilling 150 blocks (8249850 -> 8250000)
+[Pipeline:ajuna] Backfill complete.
+[Pipeline:ajuna] Pipeline is live.
+[Main] API server listening on port 3001
+[Pipeline:ajuna] Finalized block #8250001
+[Pipeline:ajuna] Finalized block #8250002
+```
+
+**6. Start the frontend** (in a second terminal)
+
+```bash
+npm run web:dev
+```
+
+**7. Open** [http://localhost:3000](http://localhost:3000) -- the explorer is live.
+
+---
+
+### Switching to a Different Chain
+
+The same steps work for any Substrate/Polkadot-ecosystem chain. Just change two values:
+
+| Chain             | `CHAIN_ID`  | `ARCHIVE_NODE_URL`                          |
+|-------------------|-------------|---------------------------------------------|
+| Polkadot          | `polkadot`  | `wss://rpc.polkadot.io`                     |
+| Kusama            | `kusama`    | `wss://kusama-rpc.polkadot.io`              |
+| Asset Hub         | `assethub`  | `wss://polkadot-asset-hub-rpc.polkadot.io`  |
+| Moonbeam          | `moonbeam`  | `wss://wss.api.moonbeam.network`            |
+| **Ajuna Network** | `ajuna`     | `wss://rpc-para.ajuna.network`              |
+
+For chains not in the default list, add an entry to `chain-config.json`:
+
+```json
+{
+  "id": "mychain",
+  "name": "My Chain",
+  "rpc": ["wss://rpc.mychain.network"],
+  "addressPrefix": 42,
+  "tokenSymbol": "MYC",
+  "tokenDecimals": 12,
+  "colorTheme": "#FF6600",
+  "isParachain": true,
+  "relayChain": "polkadot"
+}
+```
+
+Then set `CHAIN_ID=mychain` and `ARCHIVE_NODE_URL=wss://rpc.mychain.network` in your environment.
+
+---
+
 ## Table of Contents
 
+- [Quick Start: Explore Ajuna Network in 5 Minutes](#quick-start-explore-ajuna-network-in-5-minutes)
 - [Architecture Overview](#architecture-overview)
 - [Tech Stack](#tech-stack)
 - [Project Structure](#project-structure)
@@ -475,7 +671,7 @@ Polka-Xplo supports multiple chains from a single deployment. Chain configuratio
 }
 ```
 
-**Pre-configured chains:** Polkadot, Kusama, Asset Hub (parachain), Moonbeam (EVM parachain with H160 addresses).
+**Pre-configured chains:** Polkadot, Kusama, Asset Hub (parachain), Moonbeam (EVM parachain with H160 addresses), Ajuna Network (gaming parachain).
 
 **How it works:**
 - The indexer reads `CHAIN_ID` from the environment to select which chain to index.

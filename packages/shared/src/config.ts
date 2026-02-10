@@ -31,6 +31,17 @@ export const DEFAULT_CHAINS: ChainConfig[] = [
     isParachain: true,
     relayChain: "polkadot",
   },
+  {
+    id: "ajuna",
+    name: "Ajuna Network",
+    rpc: ["wss://rpc-para.ajuna.network"],
+    addressPrefix: 1328,
+    tokenSymbol: "AJUN",
+    tokenDecimals: 12,
+    colorTheme: "#F0388B",
+    isParachain: true,
+    relayChain: "polkadot",
+  },
 ];
 
 export const DEFAULT_CONFIG: ExplorerConfig = {
