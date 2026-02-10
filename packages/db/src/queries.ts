@@ -361,6 +361,77 @@ export async function upsertIndexerState(
 // Search Queries
 // ============================================================
 
+export async function getChainStats(): Promise<{
+  latestBlock: number;
+  finalizedBlock: number;
+  signedExtrinsics: number;
+  transfers: number;
+  totalAccounts: number;
+}> {
+  const [blockRes, finRes, signedRes, transferRes, accountRes] = await Promise.all([
+    query<{ height: string | null }>(
+      `SELECT MAX(height) as height FROM blocks`
+    ),
+    query<{ height: string | null }>(
+      `SELECT MAX(height) as height FROM blocks WHERE status = 'finalized'`
+    ),
+    query<{ count: string }>(
+      `SELECT COUNT(*) as count FROM extrinsics WHERE signer IS NOT NULL`
+    ),
+    query<{ count: string }>(
+      `SELECT COUNT(*) as count FROM events WHERE module = 'Balances' AND event IN ('Transfer', 'transfer')`
+    ),
+    query<{ count: string }>(
+      `SELECT COUNT(*) as count FROM accounts`
+    ),
+  ]);
+  return {
+    latestBlock: blockRes.rows[0]?.height ? parseInt(String(blockRes.rows[0].height), 10) : 0,
+    finalizedBlock: finRes.rows[0]?.height ? parseInt(String(finRes.rows[0].height), 10) : 0,
+    signedExtrinsics: parseInt(signedRes.rows[0].count, 10),
+    transfers: parseInt(transferRes.rows[0].count, 10),
+    totalAccounts: parseInt(accountRes.rows[0].count, 10),
+  };
+}
+
+export async function getLatestTransfers(
+  limit: number = 5
+): Promise<
+  {
+    extrinsicId: string;
+    blockHeight: number;
+    timestamp: number | null;
+    amount: string;
+    from: string;
+    to: string;
+  }[]
+> {
+  const result = await query<Record<string, unknown>>(
+    `SELECT e.id as event_id, e.extrinsic_id, e.block_height, e.data,
+            b.timestamp
+     FROM events e
+     LEFT JOIN blocks b ON b.height = e.block_height
+     WHERE e.module = 'Balances' AND e.event IN ('Transfer', 'transfer')
+     ORDER BY e.block_height DESC, e.index DESC
+     LIMIT $1`,
+    [limit]
+  );
+  return result.rows.map((row) => {
+    const data =
+      typeof row.data === "string"
+        ? JSON.parse(row.data)
+        : (row.data as Record<string, unknown>);
+    return {
+      extrinsicId: (row.extrinsic_id as string) ?? (row.event_id as string),
+      blockHeight: Number(row.block_height),
+      timestamp: row.timestamp ? Number(row.timestamp) : null,
+      amount: String(data.amount ?? data.value ?? "0"),
+      from: String(data.from ?? data.who ?? ""),
+      to: String(data.to ?? data.dest ?? ""),
+    };
+  });
+}
+
 export async function searchByHash(
   hash: string
 ): Promise<{ type: "block" | "extrinsic"; data: Block | Extrinsic } | null> {

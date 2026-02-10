@@ -1,57 +1,94 @@
-import { getBlocks, type BlockSummary } from "@/lib/api";
-import { BlockList } from "@/components/BlockList";
+import {
+  getBlocks,
+  getStats,
+  getTransfers,
+  type BlockSummary,
+  type ChainStats,
+  type TransferSummary,
+} from "@/lib/api";
 import { OmniSearch } from "@/components/OmniSearch";
+import { StatsBar } from "@/components/StatsBar";
+import { LatestBlocksCard } from "@/components/LatestBlocksCard";
+import { LatestTransfersCard } from "@/components/LatestTransfersCard";
 
 /**
- * Home page: shows the Omni-Search bar and a list of recent blocks.
- * Rendered as a Server Component for fast initial load + SEO.
+ * Home page: statescan-style dashboard with stats bar,
+ * latest blocks, and latest signed transfers.
  */
 export default async function HomePage() {
-  let blocks: BlockSummary[];
+  let blocks: BlockSummary[] = [];
+  let stats: ChainStats | null = null;
+  let transfers: TransferSummary[] = [];
   let error: string | null = null;
 
   try {
-    const result = await getBlocks(20, 0);
-    blocks = result.data;
+    const [blocksRes, statsRes, transfersRes] = await Promise.all([
+      getBlocks(10, 0),
+      getStats(),
+      getTransfers(10),
+    ]);
+    blocks = blocksRes.data;
+    stats = statsRes;
+    transfers = transfersRes;
   } catch {
     error = "Unable to connect to the indexer. Is the backend running?";
-    blocks = [];
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Hero search */}
-      <section className="py-8 text-center space-y-4">
+      <section className="py-6 text-center space-y-4">
         <h1 className="text-2xl font-bold text-zinc-100">
-          Polkadot Block Explorer
+          Polka-Xplo Explorer
         </h1>
         <p className="text-sm text-zinc-400">
-          Search transactions, accounts, and balances across the Polkadot ecosystem
+          Search blocks, extrinsics, accounts, and transfers
         </p>
         <OmniSearch />
       </section>
 
-      {/* Sync status banner */}
+      {/* Error banner */}
       {error && (
         <div className="rounded-lg border border-yellow-800/50 bg-yellow-950/30 p-3 text-sm text-yellow-300">
           {error}
         </div>
       )}
 
-      {/* Recent blocks */}
-      <section>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-zinc-100">Recent Blocks</h2>
-          {blocks.length > 0 && (
-            <span className="text-xs text-zinc-500">
-              Showing latest {blocks.length} blocks
-            </span>
-          )}
-        </div>
-        <div className="card">
-          <BlockList blocks={blocks} />
-        </div>
-      </section>
+      {/* Stats bar */}
+      {stats && <StatsBar stats={stats} />}
+
+      {/* Two-column: Latest Blocks + Latest Transfers */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Latest Blocks */}
+        <section>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold text-zinc-100">
+              Latest Blocks
+            </h2>
+            <a
+              href="/block/latest"
+              className="text-xs text-polkadot-pink hover:underline"
+            >
+              View All
+            </a>
+          </div>
+          <div className="card">
+            <LatestBlocksCard blocks={blocks} />
+          </div>
+        </section>
+
+        {/* Signed Transfers */}
+        <section>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-lg font-semibold text-zinc-100">
+              Signed Transfers
+            </h2>
+          </div>
+          <div className="card">
+            <LatestTransfersCard transfers={transfers} />
+          </div>
+        </section>
+      </div>
     </div>
   );
 }

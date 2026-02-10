@@ -154,3 +154,32 @@ export interface HealthStatus {
 export async function getHealth(): Promise<HealthStatus> {
   return fetchJson("/health");
 }
+
+// ---- Stats ----
+
+export interface ChainStats {
+  latestBlock: number;
+  finalizedBlock: number;
+  signedExtrinsics: number;
+  transfers: number;
+  totalAccounts: number;
+}
+
+export async function getStats(): Promise<ChainStats> {
+  return fetchJson("/api/stats");
+}
+
+// ---- Transfers ----
+
+export interface TransferSummary {
+  extrinsicId: string;
+  blockHeight: number;
+  timestamp: number | null;
+  amount: string;
+  from: string;
+  to: string;
+}
+
+export async function getTransfers(limit = 10): Promise<TransferSummary[]> {
+  return fetchJson(`/api/transfers?limit=${limit}`);
+}

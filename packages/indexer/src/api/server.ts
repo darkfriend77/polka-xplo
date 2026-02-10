@@ -16,6 +16,8 @@ import {
   getAccount,
   getIndexerState,
   searchByHash,
+  getChainStats,
+  getLatestTransfers,
 } from "@polka-xplo/db";
 import { detectSearchType } from "@polka-xplo/shared";
 
@@ -381,6 +383,91 @@ export function createApiServer(
       });
     } catch (err) {
       res.status(500).json({ error: "Failed to fetch account" });
+    }
+  });
+
+  /**
+   * @openapi
+   * /api/stats:
+   *   get:
+   *     tags: [Stats]
+   *     summary: Chain statistics
+   *     description: Returns aggregate chain statistics for the homepage.
+   *     responses:
+   *       200:
+   *         description: Chain stats
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 latestBlock:
+   *                   type: integer
+   *                 finalizedBlock:
+   *                   type: integer
+   *                 signedExtrinsics:
+   *                   type: integer
+   *                 transfers:
+   *                   type: integer
+   *                 totalAccounts:
+   *                   type: integer
+   */
+  app.get("/api/stats", async (_req, res) => {
+    try {
+      const stats = await getChainStats();
+      res.json(stats);
+    } catch (err) {
+      res.status(500).json({ error: "Failed to fetch stats" });
+    }
+  });
+
+  /**
+   * @openapi
+   * /api/transfers:
+   *   get:
+   *     tags: [Transfers]
+   *     summary: Latest transfers
+   *     description: Returns the most recent balance transfer events.
+   *     parameters:
+   *       - in: query
+   *         name: limit
+   *         schema:
+   *           type: integer
+   *           default: 10
+   *           minimum: 1
+   *           maximum: 50
+   *         description: Number of transfers to return (max 50)
+   *     responses:
+   *       200:
+   *         description: Transfer list
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: array
+   *               items:
+   *                 type: object
+   *                 properties:
+   *                   extrinsicId:
+   *                     type: string
+   *                   blockHeight:
+   *                     type: integer
+   *                   timestamp:
+   *                     type: integer
+   *                     nullable: true
+   *                   amount:
+   *                     type: string
+   *                   from:
+   *                     type: string
+   *                   to:
+   *                     type: string
+   */
+  app.get("/api/transfers", async (req, res) => {
+    try {
+      const limit = Math.min(parseInt(String(req.query.limit ?? "10"), 10), 50);
+      const transfers = await getLatestTransfers(isNaN(limit) ? 10 : limit);
+      res.json(transfers);
+    } catch (err) {
+      res.status(500).json({ error: "Failed to fetch transfers" });
     }
   });
 
