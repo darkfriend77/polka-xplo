@@ -33,8 +33,13 @@ export function ExtrinsicList({
         <tbody>
           {extrinsics.map((ext) => (
             <tr key={ext.id} className="table-row">
-              <td className="py-2.5 pr-4 font-mono text-xs text-zinc-400">
-                {ext.id}
+              <td className="py-2.5 pr-4 font-mono text-xs">
+                <a
+                  href={`/extrinsic/${ext.id}`}
+                  className="text-polkadot-pink hover:underline"
+                >
+                  {ext.id}
+                </a>
               </td>
               <td className="py-2.5 pr-4">
                 {ext.txHash ? (

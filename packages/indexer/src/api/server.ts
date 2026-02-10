@@ -9,6 +9,7 @@ import {
   getBlockByHash,
   getExtrinsicsByBlock,
   getExtrinsicByHash,
+  getExtrinsicById,
   getExtrinsicsBySigner,
   getEventsByBlock,
   getEventsByExtrinsic,
@@ -278,21 +279,36 @@ export function createApiServer(
    *       404:
    *         description: Extrinsic not found
    */
-  app.get("/api/extrinsics/:hash", async (req, res) => {
+  app.get("/api/extrinsics/:id", async (req, res) => {
     try {
-      const { hash } = req.params;
-      if (!hash || hash.length > 200) {
-        res.status(400).json({ error: "Invalid extrinsic hash" });
+      const { id } = req.params;
+      if (!id || id.length > 200) {
+        res.status(400).json({ error: "Invalid extrinsic identifier" });
         return;
       }
-      const extrinsic = await getExtrinsicByHash(hash);
+
+      // Support both block-index format ("100-0") and tx hash ("0x...")
+      let extrinsic;
+      if (/^\d+-\d+$/.test(id)) {
+        extrinsic = await getExtrinsicById(id);
+      } else {
+        extrinsic = await getExtrinsicByHash(id);
+      }
+
       if (!extrinsic) {
         res.status(404).json({ error: "Extrinsic not found" });
         return;
       }
 
+      // Fetch block for timestamp
+      const block = await getBlockByHeight(extrinsic.blockHeight);
       const events = await getEventsByExtrinsic(extrinsic.id);
-      res.json({ extrinsic, events });
+      res.json({
+        extrinsic,
+        events,
+        blockTimestamp: block?.timestamp ?? null,
+        blockHash: block?.hash ?? null,
+      });
     } catch (err) {
       res.status(500).json({ error: "Failed to fetch extrinsic" });
     }

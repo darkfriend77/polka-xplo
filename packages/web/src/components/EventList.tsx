@@ -56,8 +56,17 @@ function EventRow({ event }: { event: EventSummary }) {
         <td className="py-2.5 pr-4 font-mono text-xs text-zinc-400">
           {event.id}
         </td>
-        <td className="py-2.5 pr-4 font-mono text-xs text-zinc-400">
-          {event.extrinsicId ?? "—"}
+        <td className="py-2.5 pr-4 font-mono text-xs">
+          {event.extrinsicId ? (
+            <a
+              href={`/extrinsic/${event.extrinsicId}`}
+              className="text-polkadot-pink hover:underline"
+            >
+              {event.extrinsicId}
+            </a>
+          ) : (
+            <span className="text-zinc-400">—</span>
+          )}
         </td>
         <td className="py-2.5 pr-4">
           <span className="badge-info">

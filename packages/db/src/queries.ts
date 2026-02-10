@@ -169,6 +169,17 @@ export async function getExtrinsicByHash(
   return result.rows.length > 0 ? mapExtrinsic(result.rows[0]) : null;
 }
 
+export async function getExtrinsicById(
+  id: string
+): Promise<Extrinsic | null> {
+  const result = await query<Record<string, unknown>>(
+    `SELECT id, block_height, tx_hash, index, signer, module, call, args, success, fee, tip
+     FROM extrinsics WHERE id = $1 LIMIT 1`,
+    [id]
+  );
+  return result.rows.length > 0 ? mapExtrinsic(result.rows[0]) : null;
+}
+
 export async function getExtrinsicsBySigner(
   signer: string,
   limit: number = 20,

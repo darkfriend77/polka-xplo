@@ -81,10 +81,12 @@ export interface ExtrinsicSummary {
 export interface ExtrinsicDetail {
   extrinsic: ExtrinsicSummary;
   events: EventSummary[];
+  blockTimestamp: number | null;
+  blockHash: string | null;
 }
 
-export async function getExtrinsic(hash: string): Promise<ExtrinsicDetail> {
-  return fetchJson(`/api/extrinsics/${hash}`);
+export async function getExtrinsic(id: string): Promise<ExtrinsicDetail> {
+  return fetchJson(`/api/extrinsics/${encodeURIComponent(id)}`);
 }
 
 // ---- Events ----
