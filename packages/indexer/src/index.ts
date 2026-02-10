@@ -39,28 +39,32 @@ async function main(): Promise<void> {
   await registry.runMigrations();
   console.log(`[Main] Extensions loaded: ${registry.getExtensions().length}`);
 
-  // 4. Connect to the Polkadot node via PAPI
-  const rpcUrl = process.env.ARCHIVE_NODE_URL ?? chainConfig.rpc[0];
-  // Override the chain config RPC if env is set
-  const activeConfig = { ...chainConfig, rpc: [rpcUrl] };
-  const papiClient = getClient(activeConfig);
-  console.log(`[Main] Connected to ${rpcUrl}`);
-
-  // 5. Start the ingestion pipeline
-  const pipeline = new IngestionPipeline(papiClient, registry);
-  await pipeline.start();
-
-  // 6. Start the API server
+  // 4. Start the API server early so /health is always reachable
   const port = parseInt(process.env.API_PORT ?? "3001", 10);
   const apiServer = createApiServer(registry, chainId);
   apiServer.listen(port, () => {
     console.log(`[Main] API server listening on port ${port}`);
   });
 
-  // 7. Graceful shutdown
+  // 5. Connect to the Polkadot node via PAPI and start the ingestion pipeline.
+  //    Errors here are non-fatal so the API server keeps serving /health.
+  let pipeline: IngestionPipeline | null = null;
+  try {
+    const rpcUrl = process.env.ARCHIVE_NODE_URL ?? chainConfig.rpc[0];
+    const activeConfig = { ...chainConfig, rpc: [rpcUrl] };
+    const papiClient = getClient(activeConfig);
+    console.log(`[Main] Connected to ${rpcUrl}`);
+
+    pipeline = new IngestionPipeline(papiClient, registry);
+    await pipeline.start();
+  } catch (err) {
+    console.error("[Main] Pipeline failed to start (API server still running):", err);
+  }
+
+  // 6. Graceful shutdown
   const shutdown = async () => {
     console.log("[Main] Shutting down...");
-    await pipeline.stop();
+    if (pipeline) await pipeline.stop();
     disconnectAll();
     await closePool();
     process.exit(0);
