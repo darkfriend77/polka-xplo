@@ -22,7 +22,7 @@ export function HeaderNav({ apiDocsUrl }: { apiDocsUrl: string }) {
   }, []);
 
   const blockchainLinks = [
-    { href: "/", label: "Blocks" },
+    { href: "/blocks", label: "Blocks" },
     { href: "/extrinsics", label: "Extrinsics" },
     { href: "/transfers", label: "Transfers" },
     { href: "/accounts", label: "Accounts" },
