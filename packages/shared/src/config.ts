@@ -45,7 +45,11 @@ export const DEFAULT_CHAINS: ChainConfig[] = [
   {
     id: "ajuna",
     name: "Ajuna Network",
-    rpc: ["wss://rpc-para.ajuna.network"],
+    rpc: [
+      "wss://rpc-para.ajuna.network",
+      "wss://ajuna.ibp.network",
+      "wss://ajuna.dotters.network",
+    ],
     addressPrefix: 1328,
     tokenSymbol: "AJUN",
     tokenDecimals: 12,

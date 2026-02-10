@@ -8,7 +8,9 @@ Polka-Xplo ingests, indexes, and serves blockchain data (blocks, extrinsics, eve
 
 ## Quick Start: Explore Ajuna Network in 5 Minutes
 
-This walkthrough launches a fully working explorer for [Ajuna Network](https://ajuna.io/), a Polkadot parachain, using `wss://rpc-para.ajuna.network`. The same steps work for **any** Substrate chain -- just swap the RPC endpoint and chain ID.
+This walkthrough launches a fully working explorer for [Ajuna Network](https://ajuna.io/), a Polkadot parachain. The same steps work for **any** Substrate chain -- just swap the RPC endpoint and chain ID.
+
+> **Multi-RPC support:** The indexer distributes JSON-RPC calls across multiple endpoints for load balancing and failover. Set `ARCHIVE_NODE_URL` to a comma-separated list (e.g., `wss://rpc-para.ajuna.network,wss://ajuna.ibp.network,wss://ajuna.dotters.network`).
 
 ### Option A: Docker (recommended -- zero local tooling needed)
 
@@ -33,7 +35,7 @@ This starts four containers:
 |-----------------------|------|-------------------------------------------|
 | `polka-xplo-db`      | 5432 | PostgreSQL database                       |
 | `polka-xplo-redis`   | 6379 | Redis queue                               |
-| `polka-xplo-indexer`  | 3001 | Connects to `wss://rpc-para.ajuna.network`, indexes blocks, serves REST API |
+| `polka-xplo-indexer`  | 3001 | Connects to Ajuna RPC endpoints, indexes blocks, serves REST API |
 | `polka-xplo-web`     | 3000 | Next.js frontend                          |
 
 **3. Open the explorer**
@@ -117,8 +119,8 @@ Edit `.env` and set the Ajuna RPC and chain ID:
 DATABASE_URL=postgresql://polkaxplo:polkaxplo@localhost:5432/polkaxplo
 REDIS_URL=redis://localhost:6379
 
-# --- Point at Ajuna Network ---
-ARCHIVE_NODE_URL=wss://rpc-para.ajuna.network
+# --- Point at Ajuna Network (comma-separated for multi-RPC) ---
+ARCHIVE_NODE_URL=wss://rpc-para.ajuna.network,wss://ajuna.ibp.network,wss://ajuna.dotters.network
 CHAIN_ID=ajuna
 
 BATCH_SIZE=100
@@ -175,11 +177,11 @@ The same steps work for any Substrate/Polkadot-ecosystem chain. Just change two 
 
 | Chain             | `CHAIN_ID`  | `ARCHIVE_NODE_URL`                          |
 |-------------------|-------------|---------------------------------------------|
-| Polkadot          | `polkadot`  | `wss://rpc.polkadot.io`                     |
-| Kusama            | `kusama`    | `wss://kusama-rpc.polkadot.io`              |
+| Polkadot          | `polkadot`  | `wss://rpc.polkadot.io,wss://polkadot-rpc.dwellir.com` |
+| Kusama            | `kusama`    | `wss://kusama-rpc.polkadot.io,wss://kusama-rpc.dwellir.com` |
 | Asset Hub         | `assethub`  | `wss://polkadot-asset-hub-rpc.polkadot.io`  |
 | Moonbeam          | `moonbeam`  | `wss://wss.api.moonbeam.network`            |
-| **Ajuna Network** | `ajuna`     | `wss://rpc-para.ajuna.network`              |
+| **Ajuna Network** | `ajuna`     | `wss://rpc-para.ajuna.network,wss://ajuna.ibp.network,wss://ajuna.dotters.network` |
 
 For chains not in the default list, add an entry to `chain-config.json`:
 
@@ -187,7 +189,10 @@ For chains not in the default list, add an entry to `chain-config.json`:
 {
   "id": "mychain",
   "name": "My Chain",
-  "rpc": ["wss://rpc.mychain.network"],
+  "rpc": [
+    "wss://rpc.mychain.network",
+    "wss://mychain.ibp.network"
+  ],
   "addressPrefix": 42,
   "tokenSymbol": "MYC",
   "tokenDecimals": 12,
@@ -197,7 +202,7 @@ For chains not in the default list, add an entry to `chain-config.json`:
 }
 ```
 
-Then set `CHAIN_ID=mychain` and `ARCHIVE_NODE_URL=wss://rpc.mychain.network` in your environment.
+Then set `CHAIN_ID=mychain` and `ARCHIVE_NODE_URL=wss://rpc.mychain.network,wss://mychain.ibp.network` in your environment.
 
 ---
 
@@ -237,14 +242,15 @@ Polka-Xplo follows a **three-pillar architecture**:
 ```
                     +---------------------+
                     |   Polkadot Nodes    |
-                    |  (Archive / RPC)    |
+                    | (Archive / RPC x N) |
                     +----------+----------+
                                |
-                          WebSocket (PAPI)
+                    WSS (PAPI) + HTTP (RPC Pool)
                                |
                     +----------v----------+
                     |      INDEXER        |
                     |  Dual-Stream Engine |
+                    |  + RPC Pool (N eps) |
                     |  + Plugin Registry  |
                     +----+----------+-----+
                          |          |
@@ -308,6 +314,7 @@ polka-xplo/
 │   │   └── src/
 │   │       ├── index.ts     # Entry point, lifecycle orchestration
 │   │       ├── client.ts    # PAPI client factory (WsProvider)
+│   │       ├── rpc-pool.ts  # Round-robin RPC pool with failover
 │   │       ├── ingestion/
 │   │       │   ├── pipeline.ts         # Dual-stream engine + backfill
 │   │       │   └── block-processor.ts  # Deep extraction & normalization
@@ -493,6 +500,7 @@ The indexing engine connects to a Polkadot node via PAPI and processes blocks in
 **Core components:**
 
 - **`client.ts`** -- PAPI client factory using `WsProvider` for Archive Node connections. Supports multiple concurrent chain connections.
+- **`rpc-pool.ts`** -- Round-robin RPC pool with automatic failover, health tracking, and exponential backoff suspension. Distributes JSON-RPC calls across multiple endpoints to reduce rate limiting and survive node outages.
 - **`ingestion/pipeline.ts`** -- The dual-stream architecture:
   - *Finalized stream*: Source of truth. Blocks marked `status: 'finalized'` are immutable.
   - *Best-head stream*: Optimistic updates for real-time UI responsiveness.
@@ -741,6 +749,25 @@ Returns the indexer's operational status:
 }
 ```
 
+### RPC Pool Health
+
+```
+GET /api/rpc-health
+```
+
+Returns health stats for all RPC endpoints in the pool:
+
+```json
+{
+  "endpointCount": 3,
+  "endpoints": [
+    { "url": "https://rpc-para.ajuna.network", "healthy": true, "successes": 5079, "failures": 0 },
+    { "url": "https://ajuna.ibp.network", "healthy": true, "successes": 4821, "failures": 0 },
+    { "url": "https://ajuna.dotters.network", "healthy": true, "successes": 4756, "failures": 1 }
+  ]
+}
+```
+
 ### Blocks
 
 ```
@@ -758,10 +785,32 @@ Returns block details by height (numeric) or hash (0x-prefixed). Includes the bl
 ### Extrinsics
 
 ```
+GET /api/extrinsics?limit=25&offset=0&signed=true
+```
+
+Returns a paginated list of extrinsics. Optional `signed=true` filter hides unsigned inherent extrinsics (like `timestamp.set`).
+
+```
 GET /api/extrinsics/:hash
 ```
 
 Returns extrinsic details and all correlated events.
+
+### Events
+
+```
+GET /api/events?limit=25&offset=0&module=Balances
+```
+
+Returns a paginated list of events with optional module filter.
+
+### Transfers
+
+```
+GET /api/transfers?limit=25&offset=0
+```
+
+Returns a paginated list of balance transfer events.
 
 ### Accounts
 
@@ -798,10 +847,14 @@ Returns a list of all registered extension manifests.
 
 | Route                                  | Description                                                      |
 |----------------------------------------|------------------------------------------------------------------|
-| `/`                                    | Home page with OmniSearch bar and recent blocks table             |
-| `/block/[id]`                          | Block detail: header fields, extrinsics table, events list        |
+| `/`                                    | Home page with stats bar, latest blocks, and latest transfers     |
+| `/block/[id]`                          | Block detail with 3-tab view: Extrinsics, Events, Logs            |
+| `/extrinsics`                          | Paginated extrinsics list with signed-only filter toggle          |
+| `/events`                              | Paginated events list with module filter chips                    |
+| `/transfers`                           | Paginated transfers list                                          |
+| `/accounts`                            | Ranked accounts list with balances                                |
 | `/account/[address]`                   | Account dashboard: identity, balance breakdown, recent activity   |
-| `/extrinsic/[hash]`                    | Extrinsic detail: decoded args, fee, success/fail, correlated events |
+| `/extrinsic/[hash]`                    | Extrinsic detail: decoded args, fee, success/fail, events         |
 | `/chain-state/[pallet]/[storage]`      | Generic chain state browser using PAPI metadata introspection     |
 | `/chain/[chainId]/[...path]`           | Multi-chain scoped view with per-chain theming                    |
 
@@ -811,10 +864,16 @@ Returns a list of all registered extension manifests.
 |--------------------|----------|-----------------------------------------------------------------------|
 | `OmniSearch`       | Client   | Smart search bar with type detection and dropdown results             |
 | `BlockList`        | Server   | Sortable block table with height, hash, time, extrinsic/event counts  |
-| `ExtrinsicList`    | Server   | Extrinsic table with module/call badges, signer, success/fail status  |
+| `ExtrinsicsTable`  | Client   | Extrinsic rows with ID, block, module.call, signer (SS58), fee        |
+| `EventsTable`      | Client   | Event rows with block, index, module.event, data preview              |
+| `TransfersTable`   | Client   | Transfer rows with from/to addresses and amounts                      |
+| `AccountsTable`    | Client   | Ranked accounts with balances and extrinsic counts                    |
+| `Pagination`       | Client   | Smart pagination with page numbers, ellipsis, and "go to page" input  |
 | `BalanceDisplay`   | Server   | Four-quadrant balance card (transferable, free, reserved, frozen)      |
+| `AddressDisplay`   | Client   | SS58 address display with prefix selector                             |
 | `EventRenderer`    | Client   | Dynamic extension viewer loader with `JsonView` fallback              |
 | `JsonView`         | Client   | Collapsible JSON display for raw event/extrinsic data                 |
+| `HeaderNav`        | Client   | Navigation bar with chain branding and prefix selector                |
 
 ### Hooks
 
@@ -835,13 +894,14 @@ Copy `.env.example` to `.env` and configure:
 |---------------------------|-------------------------------------|--------------------------------------|
 | `DATABASE_URL`            | `postgresql://polkaxplo:polkaxplo@localhost:5432/polkaxplo` | PostgreSQL connection string |
 | `REDIS_URL`               | `redis://localhost:6379`            | Redis connection string              |
-| `ARCHIVE_NODE_URL`        | `wss://rpc.polkadot.io`            | Polkadot Archive Node WebSocket RPC  |
+| `ARCHIVE_NODE_URL`        | `wss://rpc.polkadot.io`            | Comma-separated RPC endpoint(s) for round-robin load balancing and failover |
 | `CHAIN_ID`                | `polkadot`                          | Chain to index (matches chain-config.json) |
 | `API_PORT`                | `3001`                              | Indexer API server port              |
 | `BATCH_SIZE`              | `100`                               | Blocks per backfill batch            |
-| `WORKER_CONCURRENCY`      | `4`                                 | Parallel block processing workers    |
+| `BACKFILL_CONCURRENCY`    | `10`                                | Parallel block processing workers during backfill |
 | `NEXT_PUBLIC_API_URL`     | `http://localhost:3001`             | API base URL for the frontend        |
 | `NEXT_PUBLIC_WS_URL`      | `ws://localhost:3001`               | WebSocket URL for live updates       |
+| `NEXT_PUBLIC_CHAIN_ID`    | `polkadot`                          | Chain ID for frontend theming and branding |
 
 ### Scripts
 
@@ -876,17 +936,33 @@ Copy `.env.example` to `.env` and configure:
 - [x] Next.js pages: Home, Block Detail, Account Detail, Extrinsic Detail
 - [x] OmniSearch with heuristic type detection
 - [x] Tailwind design system with dark mode
+- [x] Full SCALE extrinsic and event decoding
+- [x] Statescan-style homepage with stats bar and latest blocks/transfers
+- [x] Decoded extrinsic arguments and call data
+- [x] Block detail page with 3-tab view (Extrinsics, Events, Logs)
+- [x] Extrinsic detail page matching statescan layout
 
-### Phase 3: Extension Engine
+### Phase 3: Extension Engine and List Pages
 
 - [x] Backend plugin registry with lifecycle hooks
 - [x] Frontend dynamic import system with Suspense
 - [x] Staking reference extension with custom tables and UI viewer
+- [x] Paginated list pages: Extrinsics, Events, Transfers, Accounts
+- [x] Smart pagination with page numbers, ellipsis, and go-to-page input
+- [x] Module filter chips on events page
+- [x] Signed-only filter on extrinsics page
 
-### Phase 4: Parachain and Optimization
+### Phase 4: Multi-RPC, Theming, and Optimization
 
 - [x] Multi-chain configuration (`chain-config.json`)
 - [x] Docker containerization
+- [x] Configurable theme/branding system driven by chain ID
+- [x] SS58 address unification with prefix selector
+- [x] Multi-RPC pool with round-robin load balancing and automatic failover
+- [x] RPC health monitoring endpoint (`/api/rpc-health`)
+- [x] Swagger/OpenAPI documentation (`/api-docs`)
+### Phase 5: Future
+
 - [ ] PAPI descriptor generation per chain (`npx papi add`)
 - [ ] ClickHouse integration for high-volume analytics
 - [ ] smoldot light client for trustless frontend balance verification
