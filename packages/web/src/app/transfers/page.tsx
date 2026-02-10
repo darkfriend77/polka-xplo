@@ -1,5 +1,6 @@
 import { getTransfersList, type TransfersResponse } from "@/lib/api";
 import { TransfersTable } from "@/components/TransfersTable";
+import { Pagination } from "@/components/Pagination";
 import { theme } from "@/lib/theme";
 
 /**
@@ -53,29 +54,11 @@ export default async function TransfersPage({
             />
           </div>
 
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 text-sm">
-              {page > 1 && (
-                <a
-                  href={`/transfers?page=${page - 1}`}
-                  className="px-3 py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors"
-                >
-                  &larr; Prev
-                </a>
-              )}
-              <span className="px-3 py-1.5 text-zinc-400">
-                Page {page} of {totalPages.toLocaleString()}
-              </span>
-              {page < totalPages && (
-                <a
-                  href={`/transfers?page=${page + 1}`}
-                  className="px-3 py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors"
-                >
-                  Next &rarr;
-                </a>
-              )}
-            </div>
-          )}
+          <Pagination
+            currentPage={page}
+            totalPages={totalPages}
+            basePath="/transfers"
+          />
         </>
       )}
 

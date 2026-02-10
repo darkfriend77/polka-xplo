@@ -1,5 +1,6 @@
 import { getEvents, type EventsResponse } from "@/lib/api";
 import { EventsTable } from "@/components/EventsTable";
+import { Pagination } from "@/components/Pagination";
 
 /**
  * Events list page — paginated table of all events, with optional module filter.
@@ -25,14 +26,6 @@ export default async function EventsPage({
   }
 
   const totalPages = events ? Math.ceil(events.total / pageSize) : 0;
-
-  // Build pagination URL preserving module filter
-  function pageUrl(p: number) {
-    const params = new URLSearchParams();
-    params.set("page", String(p));
-    if (module) params.set("module", module);
-    return `/events?${params.toString()}`;
-  }
 
   return (
     <div className="space-y-4">
@@ -89,29 +82,12 @@ export default async function EventsPage({
             <EventsTable events={events.data} />
           </div>
 
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 text-sm">
-              {page > 1 && (
-                <a
-                  href={pageUrl(page - 1)}
-                  className="px-3 py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors"
-                >
-                  &larr; Prev
-                </a>
-              )}
-              <span className="px-3 py-1.5 text-zinc-400">
-                Page {page} of {totalPages.toLocaleString()}
-              </span>
-              {page < totalPages && (
-                <a
-                  href={pageUrl(page + 1)}
-                  className="px-3 py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors"
-                >
-                  Next &rarr;
-                </a>
-              )}
-            </div>
-          )}
+          <Pagination
+            currentPage={page}
+            totalPages={totalPages}
+            basePath="/events"
+            extraParams={module ? { module } : undefined}
+          />
         </>
       )}
 

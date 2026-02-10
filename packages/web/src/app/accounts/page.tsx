@@ -1,6 +1,7 @@
 import { getAccounts, type AccountsResponse } from "@/lib/api";
 import { theme } from "@/lib/theme";
 import { AccountsTable } from "@/components/AccountsTable";
+import { Pagination } from "@/components/Pagination";
 
 /**
  * Accounts list page — paginated ranked list of accounts.
@@ -56,29 +57,11 @@ export default async function AccountsPage({
           </div>
 
           {/* Pagination */}
-          {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-2 text-sm">
-              {page > 1 && (
-                <a
-                  href={`/accounts?page=${page - 1}`}
-                  className="px-3 py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors"
-                >
-                  &larr; Prev
-                </a>
-              )}
-              <span className="px-3 py-1.5 text-zinc-400">
-                Page {page} of {totalPages.toLocaleString()}
-              </span>
-              {page < totalPages && (
-                <a
-                  href={`/accounts?page=${page + 1}`}
-                  className="px-3 py-1.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors"
-                >
-                  Next &rarr;
-                </a>
-              )}
-            </div>
-          )}
+          <Pagination
+            currentPage={page}
+            totalPages={totalPages}
+            basePath="/accounts"
+          />
         </>
       )}
 
