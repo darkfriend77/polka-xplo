@@ -1244,23 +1244,16 @@ export function createApiServer(
         }
       } while (batch.updated > 0 && batchCount < MAX_BATCHES);
 
-      // Count remaining oversized rows
-      const remaining = await query<{ cnt: string }>(
-        `SELECT count(*) AS cnt FROM extrinsics WHERE length(args::text) > 4096 AND (args->>'_oversized') IS NULL`,
-        [],
-      );
-      const remainingCount = Number(remaining.rows[0]?.cnt ?? 0);
-
-      const done = remainingCount === 0;
-      console.log(`[Maintenance] ${done ? "Done" : "Paused"}: ${totalUpdated} truncated this call, ${remainingCount} remaining`);
+      // If the last batch returned fewer than 500, we're done
+      const done = batch.updated === 0;
+      console.log(`[Maintenance] ${done ? "Done" : "Paused"}: ${totalUpdated} truncated this call`);
 
       res.json({
         truncated: totalUpdated,
-        remaining: remainingCount,
         done,
         message: done
           ? "All oversized args truncated"
-          : `Call again to continue — ${remainingCount.toLocaleString()} rows remaining`,
+          : "Call again to continue",
       });
     } catch (err) {
       console.error("[Maintenance] Failed:", err);

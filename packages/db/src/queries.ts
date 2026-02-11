@@ -876,22 +876,42 @@ export async function deleteExtrinsicsForBlock(
 
 /**
  * Truncate oversized extrinsic args in batches.
- * Replaces args larger than `thresholdBytes` with a compact marker.
+ * Targets known oversized extrinsics by module/call (uses index)
+ * plus a fallback for any other large args.
  * Returns number of rows updated per batch call.
  */
 export async function truncateOversizedArgs(
   thresholdBytes: number = 4096,
   batchSize: number = 500,
 ): Promise<{ updated: number }> {
-  const result = await query<{ cnt: number }>(
+  // First pass: target known oversized module/call combos via index (fast)
+  let result = await query<{ cnt: number }>(
     `WITH targets AS (
-       SELECT id FROM extrinsics
+       SELECT id, length(args::text) AS sz FROM extrinsics
+       WHERE module = 'ParachainSystem' AND call = 'set_validation_data'
+         AND (args->>'_oversized') IS NULL
+       LIMIT $1
+     )
+     UPDATE extrinsics e
+     SET args = jsonb_build_object('_oversized', true, '_originalBytes', t.sz)
+     FROM targets t
+     WHERE e.id = t.id
+     RETURNING 1 AS cnt`,
+    [batchSize],
+  );
+
+  if (result.rows.length > 0) return { updated: result.rows.length };
+
+  // Second pass: catch any other oversized args (slower, full scan)
+  result = await query<{ cnt: number }>(
+    `WITH targets AS (
+       SELECT id, length(args::text) AS sz FROM extrinsics
        WHERE length(args::text) > $1
          AND (args->>'_oversized') IS NULL
        LIMIT $2
      )
      UPDATE extrinsics e
-     SET args = jsonb_build_object('_oversized', true, '_originalBytes', length(e.args::text))
+     SET args = jsonb_build_object('_oversized', true, '_originalBytes', t.sz)
      FROM targets t
      WHERE e.id = t.id
      RETURNING 1 AS cnt`,
