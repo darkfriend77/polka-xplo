@@ -275,7 +275,8 @@ export function IndexerDashboard() {
                 <th className="pb-2 pr-4 text-right">Failures</th>
                 <th className="pb-2 pr-4 text-right">Avg (ms)</th>
                 <th className="pb-2 pr-4 text-right">P95 (ms)</th>
-                <th className="pb-2 text-right">Max (ms)</th>
+                <th className="pb-2 pr-4 text-right">Max (ms)</th>
+                <th className="pb-2 text-right">Traffic %</th>
               </tr>
             </thead>
             <tbody>
@@ -303,8 +304,11 @@ export function IndexerDashboard() {
                   <td className={`py-2 pr-4 text-right ${ep.latency?.p95 != null && ep.latency.p95 > 1000 ? "text-yellow-400" : "text-zinc-400"}`}>
                     {ep.latency?.p95 != null ? ep.latency.p95.toFixed(1) : "—"}
                   </td>
-                  <td className={`py-2 text-right ${ep.latency?.max != null && ep.latency.max > 3000 ? "text-red-400" : "text-zinc-400"}`}>
+                  <td className={`py-2 pr-4 text-right ${ep.latency?.max != null && ep.latency.max > 3000 ? "text-red-400" : "text-zinc-400"}`}>
                     {ep.latency?.max != null ? ep.latency.max.toFixed(0) : "—"}
+                  </td>
+                  <td className="py-2 text-right text-zinc-300 font-medium">
+                    {ep.weight != null ? `${ep.weight}%` : "—"}
                   </td>
                 </tr>
               ))}
