@@ -145,6 +145,92 @@ export function IndexerDashboard() {
         </div>
       </section>
 
+      {/* Performance */}
+      <section className="card space-y-4">
+        <h2 className="text-base font-semibold text-zinc-100">Performance</h2>
+
+        {/* Block processing time */}
+        {status.blockProcessingTime && status.blockProcessingTime.count > 0 && (
+          <div className="space-y-2">
+            <h3 className="text-xs font-medium text-zinc-400 uppercase tracking-wider">
+              Block Processing Time
+            </h3>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+              <StatCard label="Avg" value={`${status.blockProcessingTime.avg.toFixed(1)} ms`} />
+              <StatCard label="P50" value={`${status.blockProcessingTime.p50.toFixed(1)} ms`} />
+              <StatCard
+                label="P95"
+                value={`${status.blockProcessingTime.p95.toFixed(1)} ms`}
+                alert={status.blockProcessingTime.p95 > 2000}
+              />
+              <StatCard
+                label="Max"
+                value={`${status.blockProcessingTime.max.toFixed(0)} ms`}
+                alert={status.blockProcessingTime.max > 5000}
+              />
+              <StatCard label="Samples" value={formatNumber(status.blockProcessingTime.count)} />
+            </div>
+          </div>
+        )}
+
+        {/* Query stats summary */}
+        <div className="space-y-2">
+          <h3 className="text-xs font-medium text-zinc-400 uppercase tracking-wider">
+            Database Queries
+          </h3>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <StatCard label="Total Queries" value={formatNumber(status.database.totalQueries)} />
+            <StatCard
+              label="Slow Queries"
+              value={formatNumber(status.database.slowQueries)}
+              alert={status.database.slowQueries > 10}
+            />
+            <StatCard
+              label="Cache Hit Ratio"
+              value={
+                status.database.cacheHitRatio != null
+                  ? `${(status.database.cacheHitRatio * 100).toFixed(2)}%`
+                  : "N/A"
+              }
+              alert={
+                status.database.cacheHitRatio != null && status.database.cacheHitRatio < 0.95
+              }
+            />
+            <StatCard
+              label="Pool (used / idle / wait)"
+              value={`${status.database.pool.total - status.database.pool.idle} / ${status.database.pool.idle} / ${status.database.pool.waiting}`}
+              alert={status.database.pool.waiting > 0}
+            />
+          </div>
+        </div>
+
+        {/* Read vs Write latency */}
+        <div className="space-y-2">
+          <h3 className="text-xs font-medium text-zinc-400 uppercase tracking-wider">
+            Query Latency
+          </h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-zinc-500 border-b border-zinc-800">
+                  <th className="pb-2 pr-4">Type</th>
+                  <th className="pb-2 pr-4 text-right">Count</th>
+                  <th className="pb-2 pr-4 text-right">Avg</th>
+                  <th className="pb-2 pr-4 text-right">P50</th>
+                  <th className="pb-2 pr-4 text-right">P95</th>
+                  <th className="pb-2 text-right">Max</th>
+                </tr>
+              </thead>
+              <tbody>
+                <LatencyRow label="All" stats={status.database.queryLatency} />
+                <LatencyRow label="Reads" stats={status.database.readLatency} />
+                <LatencyRow label="Writes" stats={status.database.writeLatency} warnP95={50} />
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
       {/* Database */}
       <section className="card space-y-4">
         <div className="flex items-center justify-between">
@@ -186,7 +272,10 @@ export function IndexerDashboard() {
                 <th className="pb-2 pr-4">URL</th>
                 <th className="pb-2 pr-4">Status</th>
                 <th className="pb-2 pr-4 text-right">Successes</th>
-                <th className="pb-2 text-right">Failures</th>
+                <th className="pb-2 pr-4 text-right">Failures</th>
+                <th className="pb-2 pr-4 text-right">Avg (ms)</th>
+                <th className="pb-2 pr-4 text-right">P95 (ms)</th>
+                <th className="pb-2 text-right">Max (ms)</th>
               </tr>
             </thead>
             <tbody>
@@ -205,7 +294,18 @@ export function IndexerDashboard() {
                   <td className="py-2 pr-4 text-right text-zinc-400">
                     {formatNumber(ep.successes)}
                   </td>
-                  <td className="py-2 text-right text-zinc-400">{formatNumber(ep.failures)}</td>
+                  <td className="py-2 pr-4 text-right text-zinc-400">
+                    {formatNumber(ep.failures)}
+                  </td>
+                  <td className="py-2 pr-4 text-right text-zinc-400">
+                    {ep.latency?.avg != null ? ep.latency.avg.toFixed(1) : "—"}
+                  </td>
+                  <td className={`py-2 pr-4 text-right ${ep.latency?.p95 != null && ep.latency.p95 > 1000 ? "text-yellow-400" : "text-zinc-400"}`}>
+                    {ep.latency?.p95 != null ? ep.latency.p95.toFixed(1) : "—"}
+                  </td>
+                  <td className={`py-2 text-right ${ep.latency?.max != null && ep.latency.max > 3000 ? "text-red-400" : "text-zinc-400"}`}>
+                    {ep.latency?.max != null ? ep.latency.max.toFixed(0) : "—"}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -228,5 +328,38 @@ function StatCard({ label, value, alert }: { label: string; value: string; alert
       <p className="text-xs text-zinc-500 mb-1">{label}</p>
       <p className={`text-lg font-semibold ${alert ? "text-red-400" : "text-zinc-100"}`}>{value}</p>
     </div>
+  );
+}
+
+function LatencyRow({
+  label,
+  stats,
+  warnP95,
+}: {
+  label: string;
+  stats: { avg: number; p50: number; p95: number; max: number; count?: number };
+  warnP95?: number;
+}) {
+  const hasData = stats && (stats.count ?? 0) > 0;
+  const p95Warn = warnP95 != null && hasData && stats.p95 > warnP95;
+  return (
+    <tr className="border-b border-zinc-800/50">
+      <td className="py-2 pr-4 font-medium text-zinc-300">{label}</td>
+      <td className="py-2 pr-4 text-right text-zinc-400">
+        {hasData ? formatNumber(stats.count ?? 0) : "—"}
+      </td>
+      <td className="py-2 pr-4 text-right text-zinc-400">
+        {hasData ? stats.avg.toFixed(2) : "—"}
+      </td>
+      <td className="py-2 pr-4 text-right text-zinc-400">
+        {hasData ? stats.p50.toFixed(2) : "—"}
+      </td>
+      <td className={`py-2 pr-4 text-right ${p95Warn ? "text-yellow-400" : "text-zinc-400"}`}>
+        {hasData ? stats.p95.toFixed(2) : "—"}
+      </td>
+      <td className={`py-2 text-right ${hasData && stats.max > 200 ? "text-red-400" : "text-zinc-400"}`}>
+        {hasData ? stats.max.toFixed(1) : "—"}
+      </td>
+    </tr>
   );
 }

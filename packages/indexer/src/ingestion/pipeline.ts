@@ -226,8 +226,10 @@ export class IngestionPipeline {
       return;
     }
 
+    const blockStart = performance.now();
     await processBlock(rawBlock, status, this.registry);
-    metrics.recordBlock(height);
+    const blockTimeMs = performance.now() - blockStart;
+    metrics.recordBlock(height, blockTimeMs);
   }
 
   /**

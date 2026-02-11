@@ -40,9 +40,19 @@ export interface MetricsSnapshot {
     heapTotal: number;
     external: number;
   };
+  /** Block processing time stats (ms per block) */
+  blockProcessingTime: {
+    avg: number;
+    p50: number;
+    p95: number;
+    max: number;
+    count: number;
+  };
 }
 
 const WINDOW_SIZE = 7200; // keep last 2 hours of block timestamps
+
+const BLOCK_TIME_WINDOW = 1000; // keep last 1000 block processing times
 
 class IndexerMetrics {
   private startedAt = Date.now();
@@ -54,9 +64,11 @@ class IndexerMetrics {
 
   /** Ring buffer of block processing timestamps (for rate calculation) */
   private blockTimestamps: number[] = [];
+  /** Ring buffer of block processing durations in ms */
+  private blockProcessingTimes: number[] = [];
 
   /** Record a successfully processed block */
-  recordBlock(height: number): void {
+  recordBlock(height: number, processingTimeMs?: number): void {
     this.blocksProcessed++;
     if (height > this.indexedHeight) {
       this.indexedHeight = height;
@@ -66,6 +78,12 @@ class IndexerMetrics {
     // Trim: keep only the last WINDOW_SIZE entries
     if (this.blockTimestamps.length > WINDOW_SIZE) {
       this.blockTimestamps = this.blockTimestamps.slice(-WINDOW_SIZE);
+    }
+    if (processingTimeMs !== undefined) {
+      this.blockProcessingTimes.push(processingTimeMs);
+      if (this.blockProcessingTimes.length > BLOCK_TIME_WINDOW) {
+        this.blockProcessingTimes = this.blockProcessingTimes.slice(-BLOCK_TIME_WINDOW);
+      }
     }
   }
 
@@ -134,8 +152,23 @@ class IndexerMetrics {
         heapTotal: mem.heapTotal,
         external: mem.external,
       },
+      blockProcessingTime: blockTimePercentiles(this.blockProcessingTimes),
     };
   }
+}
+
+function blockTimePercentiles(arr: number[]): { avg: number; p50: number; p95: number; max: number; count: number } {
+  if (arr.length === 0) return { avg: 0, p50: 0, p95: 0, max: 0, count: 0 };
+  const sorted = [...arr].sort((a, b) => a - b);
+  const sum = sorted.reduce((a, b) => a + b, 0);
+  const len = sorted.length;
+  return {
+    avg: Math.round((sum / len) * 100) / 100,
+    p50: Math.round(sorted[Math.floor(len * 0.5)] * 100) / 100,
+    p95: Math.round(sorted[Math.floor(len * 0.95)] * 100) / 100,
+    max: Math.round(sorted[len - 1] * 100) / 100,
+    count: len,
+  };
 }
 
 /** Singleton metrics instance */

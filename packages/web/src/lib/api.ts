@@ -275,6 +275,14 @@ export async function getTransfersList(limit = 25, offset = 0): Promise<Transfer
 
 // ---- Indexer Status ----
 
+export interface LatencyStats {
+  avg: number;
+  p50: number;
+  p95: number;
+  max: number;
+  count?: number;
+}
+
 export interface IndexerStatusResponse {
   startedAt: number;
   uptimeSeconds: number;
@@ -294,9 +302,17 @@ export interface IndexerStatusResponse {
     heapTotal: number;
     external: number;
   };
+  blockProcessingTime: LatencyStats & { count: number };
   database: {
     totalSize: string;
     tables: { name: string; rows: number; size: string }[];
+    cacheHitRatio: number;
+    pool: { total: number; idle: number; waiting: number };
+    queryLatency: LatencyStats & { count: number };
+    writeLatency: LatencyStats & { count: number };
+    readLatency: LatencyStats & { count: number };
+    totalQueries: number;
+    slowQueries: number;
   };
   rpc: {
     endpointCount: number;
@@ -305,6 +321,7 @@ export interface IndexerStatusResponse {
       healthy: boolean;
       successes: number;
       failures: number;
+      latency: LatencyStats;
     }[];
   };
 }

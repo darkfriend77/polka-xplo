@@ -28,6 +28,7 @@ import {
   getDigestLogs,
   query,
   getEventModules,
+  dbMetrics,
 } from "@polka-xplo/db";
 import { detectSearchType, normalizeAddress } from "@polka-xplo/shared";
 import { metrics } from "../metrics.js";
@@ -168,16 +169,28 @@ export function createApiServer(
    */
   app.get("/api/indexer-status", async (_req, res) => {
     try {
-      const [snapshot, dbSize] = await Promise.all([
+      const [snapshot, dbSize, cacheHitResult] = await Promise.all([
         Promise.resolve(metrics.getSnapshot()),
         getDatabaseSize(),
+        query<{ ratio: string }>(
+          `SELECT ROUND(
+             CASE WHEN (sum(blks_hit) + sum(blks_read)) = 0 THEN 0
+             ELSE sum(blks_hit)::numeric / (sum(blks_hit) + sum(blks_read)) * 100
+             END, 2
+           ) AS ratio FROM pg_stat_database WHERE datname = current_database()`,
+        ),
       ]);
       const rpcHealth = rpcPool
         ? { endpointCount: rpcPool.size, endpoints: rpcPool.getStats() }
         : { endpointCount: 0, endpoints: [] };
+      const cacheHitRatio = parseFloat(cacheHitResult.rows[0]?.ratio ?? "0");
       res.json({
         ...snapshot,
-        database: dbSize,
+        database: {
+          ...dbSize,
+          cacheHitRatio,
+          ...dbMetrics.getSnapshot(),
+        },
         rpc: rpcHealth,
       });
     } catch {

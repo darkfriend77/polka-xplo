@@ -10,6 +10,8 @@
  * suspended and retried after a cooldown period.
  */
 
+const RPC_LATENCY_WINDOW = 500; // keep last 500 call timings per endpoint
+
 interface EndpointState {
   /** The HTTP URL (converted from WSS if needed) */
   httpUrl: string;
@@ -23,6 +25,8 @@ interface EndpointState {
   successCount: number;
   /** Total failed calls */
   failCount: number;
+  /** Recent call latencies (ms) for percentile stats */
+  latencies: number[];
 }
 
 export interface RpcCallResult<T = unknown> {
@@ -56,6 +60,7 @@ export class RpcPool {
       suspendedUntil: 0,
       successCount: 0,
       failCount: 0,
+      latencies: [],
     }));
 
     console.log(`[RpcPool] Initialized with ${this.endpoints.length} endpoint(s):`);
@@ -104,10 +109,14 @@ export class RpcPool {
   }
 
   /** Mark an endpoint as having succeeded */
-  private markSuccess(ep: EndpointState): void {
+  private markSuccess(ep: EndpointState, latencyMs: number): void {
     ep.failures = 0;
     ep.suspendedUntil = 0;
     ep.successCount++;
+    ep.latencies.push(latencyMs);
+    if (ep.latencies.length > RPC_LATENCY_WINDOW) {
+      ep.latencies = ep.latencies.slice(-RPC_LATENCY_WINDOW);
+    }
   }
 
   /** Mark an endpoint as having failed */
@@ -138,6 +147,7 @@ export class RpcPool {
 
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       const ep = this.getNextEndpoint();
+      const callStart = performance.now();
 
       try {
         const res = await fetch(ep.httpUrl, {
@@ -159,7 +169,8 @@ export class RpcPool {
           throw new Error(`RPC ${method} error: ${json.error.message} (code ${json.error.code})`);
         }
 
-        this.markSuccess(ep);
+        const callLatency = performance.now() - callStart;
+        this.markSuccess(ep, callLatency);
         return json.result as T;
       } catch (err) {
         this.markFailed(ep);
@@ -175,14 +186,34 @@ export class RpcPool {
     );
   }
 
-  /** Print pool health stats */
-  getStats(): { url: string; healthy: boolean; successes: number; failures: number }[] {
+  /** Print pool health stats with latency percentiles */
+  getStats(): {
+    url: string;
+    healthy: boolean;
+    successes: number;
+    failures: number;
+    latency: { avg: number; p50: number; p95: number; max: number };
+  }[] {
     const now = Date.now();
     return this.endpoints.map((ep) => ({
       url: ep.httpUrl,
       healthy: ep.suspendedUntil <= now,
       successes: ep.successCount,
       failures: ep.failCount,
+      latency: rpcPercentiles(ep.latencies),
     }));
   }
+}
+
+function rpcPercentiles(arr: number[]): { avg: number; p50: number; p95: number; max: number } {
+  if (arr.length === 0) return { avg: 0, p50: 0, p95: 0, max: 0 };
+  const sorted = [...arr].sort((a, b) => a - b);
+  const sum = sorted.reduce((a, b) => a + b, 0);
+  const len = sorted.length;
+  return {
+    avg: Math.round(sum / len),
+    p50: Math.round(sorted[Math.floor(len * 0.5)]),
+    p95: Math.round(sorted[Math.floor(len * 0.95)]),
+    max: Math.round(sorted[len - 1]),
+  };
 }
