@@ -12,6 +12,28 @@ services:
       - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
+    # Tuned for 8 GB RAM host with large dataset
+    command:
+      - "postgres"
+      - "-c" 
+      - "shared_buffers=2GB"
+      - "-c"
+      - "effective_cache_size=6GB"
+      - "-c"
+      - "work_mem=64MB"
+      - "-c"
+      - "maintenance_work_mem=512MB"
+      - "-c"
+      - "wal_buffers=64MB"
+      - "-c"
+      - "max_wal_size=2GB"
+      - "-c"
+      - "random_page_cost=1.1"
+      - "-c"
+      - "effective_io_concurrency=200"
+      - "-c"
+      - "checkpoint_completion_target=0.9"
+    shm_size: '2g'
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U polkaxplo"]
       interval: 5s

@@ -31,6 +31,7 @@ import {
   getEventModules,
   dbMetrics,
   getBrokenExtrinsicBlocks,
+  truncateOversizedArgs,
 } from "@polka-xplo/db";
 import { detectSearchType, normalizeAddress } from "@polka-xplo/shared";
 import { metrics } from "../metrics.js";
@@ -1202,6 +1203,99 @@ export function createApiServer(
     } catch (err) {
       console.error("[Repair] Failed:", err);
       res.status(500).json({ error: "Repair failed" });
+    }
+  });
+
+  // ============================================================
+  // Maintenance — Truncate oversized extrinsic args
+  // ============================================================
+
+  /**
+   * @openapi
+   * /api/maintenance/truncate-args:
+   *   post:
+   *     tags: [Admin]
+   *     summary: Truncate oversized extrinsic args
+   *     description: |
+   *       Replaces extrinsic args larger than 4 KB with a compact marker
+   *       `{"_oversized": true, "_originalBytes": N}`.
+   *       Runs in batches; call repeatedly until `remaining` is 0.
+   *     responses:
+   *       200:
+   *         description: Truncation results
+   */
+  app.post("/api/maintenance/truncate-args", async (_req, res) => {
+    try {
+      let totalUpdated = 0;
+      let batch: { updated: number };
+
+      // Process in batches to avoid long-running transactions
+      do {
+        batch = await truncateOversizedArgs(4096, 500);
+        totalUpdated += batch.updated;
+        if (batch.updated > 0) {
+          console.log(`[Maintenance] Truncated ${batch.updated} oversized args (total: ${totalUpdated})`);
+        }
+      } while (batch.updated > 0);
+
+      console.log(`[Maintenance] Done: ${totalUpdated} extrinsics truncated`);
+
+      // Report remaining for follow-up calls
+      const remaining = await query<{ cnt: string }>(
+        `SELECT count(*) AS cnt FROM extrinsics WHERE length(args::text) > 4096 AND (args->>'_oversized') IS NULL`,
+        [],
+      );
+
+      res.json({
+        truncated: totalUpdated,
+        remaining: Number(remaining.rows[0]?.cnt ?? 0),
+      });
+    } catch (err) {
+      console.error("[Maintenance] Failed:", err);
+      res.status(500).json({ error: "Truncation failed" });
+    }
+  });
+
+  /**
+   * @openapi
+   * /api/maintenance/vacuum:
+   *   post:
+   *     tags: [Admin]
+   *     summary: Run VACUUM ANALYZE on main tables
+   *     description: |
+   *       Reclaims disk space after large truncation operations
+   *       and updates planner statistics. May take several minutes.
+   *     responses:
+   *       200:
+   *         description: Vacuum results
+   */
+  app.post("/api/maintenance/vacuum", async (_req, res) => {
+    try {
+      console.log("[Maintenance] Starting VACUUM ANALYZE on extrinsics...");
+      const start = Date.now();
+      await query("VACUUM ANALYZE extrinsics", []);
+      const extTime = Date.now() - start;
+      console.log(`[Maintenance] extrinsics done in ${extTime}ms`);
+
+      const start2 = Date.now();
+      await query("VACUUM ANALYZE events", []);
+      const evtTime = Date.now() - start2;
+      console.log(`[Maintenance] events done in ${evtTime}ms`);
+
+      const start3 = Date.now();
+      await query("VACUUM ANALYZE blocks", []);
+      const blkTime = Date.now() - start3;
+      console.log(`[Maintenance] blocks done in ${blkTime}ms`);
+
+      const sizeResult = await getDatabaseSize();
+      res.json({
+        vacuumed: ["extrinsics", "events", "blocks"],
+        durationMs: { extrinsics: extTime, events: evtTime, blocks: blkTime },
+        databaseSize: sizeResult.totalSize,
+      });
+    } catch (err) {
+      console.error("[Maintenance] VACUUM failed:", err);
+      res.status(500).json({ error: "Vacuum failed" });
     }
   });
 

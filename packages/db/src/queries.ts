@@ -873,3 +873,29 @@ export async function deleteExtrinsicsForBlock(
   const exec = client ? client.query.bind(client) : query;
   await exec(`DELETE FROM extrinsics WHERE block_height = $1`, [blockHeight]);
 }
+
+/**
+ * Truncate oversized extrinsic args in batches.
+ * Replaces args larger than `thresholdBytes` with a compact marker.
+ * Returns number of rows updated per batch call.
+ */
+export async function truncateOversizedArgs(
+  thresholdBytes: number = 4096,
+  batchSize: number = 500,
+): Promise<{ updated: number }> {
+  const result = await query<{ cnt: number }>(
+    `WITH targets AS (
+       SELECT id FROM extrinsics
+       WHERE length(args::text) > $1
+         AND (args->>'_oversized') IS NULL
+       LIMIT $2
+     )
+     UPDATE extrinsics e
+     SET args = jsonb_build_object('_oversized', true, '_originalBytes', length(e.args::text))
+     FROM targets t
+     WHERE e.id = t.id
+     RETURNING 1 AS cnt`,
+    [thresholdBytes, batchSize],
+  );
+  return { updated: result.rows.length };
+}

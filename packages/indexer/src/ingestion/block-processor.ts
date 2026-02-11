@@ -29,6 +29,19 @@ export interface RawBlockData {
   specVersion: number;
 }
 
+/** Maximum serialized args size in bytes before truncation (4 KB) */
+const ARGS_SIZE_LIMIT = 4096;
+
+/**
+ * If serialized args exceed ARGS_SIZE_LIMIT, replace with a compact
+ * marker so the extrinsics table stays manageable.
+ */
+function truncateOversizedArgs(args: Record<string, unknown>): Record<string, unknown> {
+  const json = JSON.stringify(args);
+  if (json.length <= ARGS_SIZE_LIMIT) return args;
+  return { _oversized: true, _originalBytes: json.length };
+}
+
 export interface RawExtrinsic {
   index: number;
   hash: string | null;
@@ -104,7 +117,7 @@ export async function processBlock(
         signer: rawExt.signer,
         module: rawExt.module,
         call: rawExt.call,
-        args: rawExt.args,
+        args: truncateOversizedArgs(rawExt.args),
         success: rawExt.success,
         fee: rawExt.fee,
         tip: rawExt.tip,
