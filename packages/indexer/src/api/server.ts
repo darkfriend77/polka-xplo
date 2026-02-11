@@ -1229,26 +1229,38 @@ export function createApiServer(
       let totalUpdated = 0;
       let batch: { updated: number };
 
-      // Process in batches to avoid long-running transactions
+      // Process in limited batches per request to avoid timeouts.
+      // Each call processes up to MAX_ROWS_PER_CALL rows.
+      // Call repeatedly until remaining === 0.
+      const MAX_BATCHES = 20;  // 20 batches × 500 rows = 10,000 rows per call
+      let batchCount = 0;
+
       do {
         batch = await truncateOversizedArgs(4096, 500);
         totalUpdated += batch.updated;
+        batchCount++;
         if (batch.updated > 0) {
-          console.log(`[Maintenance] Truncated ${batch.updated} oversized args (total: ${totalUpdated})`);
+          console.log(`[Maintenance] Truncated ${batch.updated} oversized args (batch ${batchCount}, total: ${totalUpdated})`);
         }
-      } while (batch.updated > 0);
+      } while (batch.updated > 0 && batchCount < MAX_BATCHES);
 
-      console.log(`[Maintenance] Done: ${totalUpdated} extrinsics truncated`);
-
-      // Report remaining for follow-up calls
+      // Count remaining oversized rows
       const remaining = await query<{ cnt: string }>(
         `SELECT count(*) AS cnt FROM extrinsics WHERE length(args::text) > 4096 AND (args->>'_oversized') IS NULL`,
         [],
       );
+      const remainingCount = Number(remaining.rows[0]?.cnt ?? 0);
+
+      const done = remainingCount === 0;
+      console.log(`[Maintenance] ${done ? "Done" : "Paused"}: ${totalUpdated} truncated this call, ${remainingCount} remaining`);
 
       res.json({
         truncated: totalUpdated,
-        remaining: Number(remaining.rows[0]?.cnt ?? 0),
+        remaining: remainingCount,
+        done,
+        message: done
+          ? "All oversized args truncated"
+          : `Call again to continue — ${remainingCount.toLocaleString()} rows remaining`,
       });
     } catch (err) {
       console.error("[Maintenance] Failed:", err);
