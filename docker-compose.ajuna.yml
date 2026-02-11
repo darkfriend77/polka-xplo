@@ -12,7 +12,7 @@
 services:
   explorer-indexer:
     environment:
-      ARCHIVE_NODE_URL: wss://rpc-para.ajuna.network,wss://ajuna.ibp.network,wss://ajuna.dotters.network
+      ARCHIVE_NODE_URL: wss://rpc-para.ajuna.network,wss://ajuna.ibp.network,wss://ajuna.dotters.network,wss://rpc-p2.ajuna.network
       CHAIN_ID: ajuna
 
   explorer-web:

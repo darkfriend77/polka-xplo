@@ -1,16 +1,22 @@
 /**
- * RPC Pool — round-robin load balancing with automatic failover.
+ * RPC Pool — latency-weighted load balancing with automatic failover.
  *
  * Distributes JSON-RPC calls across multiple endpoints to:
  * - Reduce rate-limiting from any single node
  * - Survive individual node outages
  * - Improve backfill throughput with concurrent workers
  *
+ * Routing: Once enough latency samples are collected, endpoints are
+ * weighted by inverse-average-latency so faster nodes receive
+ * proportionally more traffic. Falls back to round-robin until
+ * the warm-up period is complete.
+ *
  * Each endpoint tracks health. Failed endpoints are temporarily
  * suspended and retried after a cooldown period.
  */
 
 const RPC_LATENCY_WINDOW = 500; // keep last 500 call timings per endpoint
+const LATENCY_WARMUP_CALLS = 20; // round-robin until each endpoint has this many samples
 
 interface EndpointState {
   /** The HTTP URL (converted from WSS if needed) */
@@ -85,27 +91,53 @@ export class RpcPool {
     return this.endpoints.map((ep) => ep.wsUrl);
   }
 
-  /** Get the next available HTTP URL via round-robin */
+  /**
+   * Pick the next endpoint using latency-weighted probability.
+   *
+   * Weight = 1 / avgLatency — so an endpoint twice as fast gets twice
+   * the traffic. Falls back to round-robin during the warm-up phase
+   * (< LATENCY_WARMUP_CALLS samples per endpoint).
+   */
   private getNextEndpoint(): EndpointState {
     const now = Date.now();
-    const len = this.endpoints.length;
+    const healthy = this.endpoints.filter((ep) => ep.suspendedUntil <= now);
 
-    // Try round-robin, skipping suspended endpoints
-    for (let i = 0; i < len; i++) {
-      const idx = (this.roundRobinIndex + i) % len;
-      const ep = this.endpoints[idx];
+    if (healthy.length === 0) {
+      // All suspended — unsuspend the one with the earliest suspendedUntil
+      const earliest = this.endpoints.reduce((a, b) =>
+        a.suspendedUntil < b.suspendedUntil ? a : b,
+      );
+      earliest.suspendedUntil = 0;
+      earliest.failures = 0;
+      return earliest;
+    }
 
-      if (ep.suspendedUntil <= now) {
-        this.roundRobinIndex = (idx + 1) % len;
-        return ep;
+    // Warm-up: use round-robin until every healthy endpoint has enough samples
+    const allWarmedUp = healthy.every((ep) => ep.latencies.length >= LATENCY_WARMUP_CALLS);
+    if (!allWarmedUp) {
+      // Simple round-robin over healthy endpoints
+      for (let i = 0; i < this.endpoints.length; i++) {
+        const idx = (this.roundRobinIndex + i) % this.endpoints.length;
+        const ep = this.endpoints[idx];
+        if (ep.suspendedUntil <= now) {
+          this.roundRobinIndex = (idx + 1) % this.endpoints.length;
+          return ep;
+        }
       }
     }
 
-    // All suspended — unsuspend the one with the earliest suspendedUntil
-    const earliest = this.endpoints.reduce((a, b) => (a.suspendedUntil < b.suspendedUntil ? a : b));
-    earliest.suspendedUntil = 0;
-    earliest.failures = 0;
-    return earliest;
+    // Weighted selection: weight = 1 / avgLatency
+    const weights = healthy.map((ep) => {
+      const avg = ep.latencies.reduce((a, b) => a + b, 0) / ep.latencies.length;
+      return 1 / Math.max(avg, 0.1); // floor to avoid division by zero
+    });
+    const totalWeight = weights.reduce((a, b) => a + b, 0);
+    let rand = Math.random() * totalWeight;
+    for (let i = 0; i < healthy.length; i++) {
+      rand -= weights[i];
+      if (rand <= 0) return healthy[i];
+    }
+    return healthy[healthy.length - 1];
   }
 
   /** Mark an endpoint as having succeeded */
@@ -186,21 +218,36 @@ export class RpcPool {
     );
   }
 
-  /** Print pool health stats with latency percentiles */
+  /** Print pool health stats with latency percentiles and routing weight */
   getStats(): {
     url: string;
     healthy: boolean;
     successes: number;
     failures: number;
     latency: { avg: number; p50: number; p95: number; max: number };
+    weight: number;
   }[] {
     const now = Date.now();
+    const healthy = this.endpoints.filter((ep) => ep.suspendedUntil <= now && ep.latencies.length >= LATENCY_WARMUP_CALLS);
+    // Compute relative weights (0-100% share)
+    let weights: Map<EndpointState, number> = new Map();
+    if (healthy.length > 0) {
+      const rawWeights = healthy.map((ep) => {
+        const avg = ep.latencies.reduce((a, b) => a + b, 0) / ep.latencies.length;
+        return { ep, w: 1 / Math.max(avg, 0.1) };
+      });
+      const totalW = rawWeights.reduce((a, b) => a + b.w, 0);
+      for (const { ep, w } of rawWeights) {
+        weights.set(ep, Math.round((w / totalW) * 100));
+      }
+    }
     return this.endpoints.map((ep) => ({
       url: ep.httpUrl,
       healthy: ep.suspendedUntil <= now,
       successes: ep.successCount,
       failures: ep.failCount,
       latency: rpcPercentiles(ep.latencies),
+      weight: weights.get(ep) ?? 0,
     }));
   }
 }

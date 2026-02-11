@@ -175,8 +175,8 @@ export function createApiServer(
         query<{ ratio: string }>(
           `SELECT ROUND(
              CASE WHEN (sum(blks_hit) + sum(blks_read)) = 0 THEN 0
-             ELSE sum(blks_hit)::numeric / (sum(blks_hit) + sum(blks_read)) * 100
-             END, 2
+             ELSE sum(blks_hit)::numeric / (sum(blks_hit) + sum(blks_read))
+             END, 4
            ) AS ratio FROM pg_stat_database WHERE datname = current_database()`,
         ),
       ]);

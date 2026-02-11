@@ -322,6 +322,7 @@ export interface IndexerStatusResponse {
       successes: number;
       failures: number;
       latency: LatencyStats;
+      weight: number;
     }[];
   };
 }
