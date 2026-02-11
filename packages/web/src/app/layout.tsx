@@ -30,7 +30,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 }
 
 function Header() {
-  const apiDocsUrl = "/indexer-api/api-docs";
+  const apiDocsUrl = "/indexer-api/api-docs/";
   return (
     <header className="sticky top-0 z-50 border-b border-zinc-800 bg-zinc-950/80 backdrop-blur-sm">
       <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between gap-4">

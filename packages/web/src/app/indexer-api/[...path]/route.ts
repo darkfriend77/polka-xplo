@@ -20,13 +20,24 @@ async function handler(req: NextRequest, { params }: { params: Promise<{ path: s
   try {
     const res = await fetch(target, {
       method: req.method,
+      redirect: "manual",
       headers: {
         "content-type": req.headers.get("content-type") ?? "application/json",
       },
       body: req.method !== "GET" && req.method !== "HEAD" ? await req.text() : undefined,
     });
 
-    const body = await res.text();
+    // Forward redirects, rewriting Location to go through the proxy path.
+    if (res.status >= 300 && res.status < 400) {
+      const location = res.headers.get("location") ?? "";
+      // Rewrite absolute-path redirects: /api-docs/ → /indexer-api/api-docs/
+      const proxied = location.startsWith("/")
+        ? `/indexer-api${location}`
+        : location;
+      return NextResponse.redirect(new URL(proxied, req.url), res.status as 301 | 302 | 307 | 308);
+    }
+
+    const body = await res.arrayBuffer();
 
     return new NextResponse(body, {
       status: res.status,
