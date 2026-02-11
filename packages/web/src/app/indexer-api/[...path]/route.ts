@@ -15,7 +15,8 @@ function getBackendUrl(): string {
 async function handler(req: NextRequest, { params }: { params: Promise<{ path: string[] }> }) {
   const { path } = await params;
   const backendUrl = getBackendUrl();
-  const target = `${backendUrl}/${path.join("/")}${req.nextUrl.search}`;
+  const proxyPath = path.join("/");
+  const target = `${backendUrl}/${proxyPath}${req.nextUrl.search}`;
 
   try {
     const res = await fetch(target, {
@@ -24,14 +25,34 @@ async function handler(req: NextRequest, { params }: { params: Promise<{ path: s
         "content-type": req.headers.get("content-type") ?? "application/json",
       },
       body: req.method !== "GET" && req.method !== "HEAD" ? await req.text() : undefined,
+      // Follow redirects internally so we don't fight Next.js trailingSlash handling.
     });
 
-    const body = await res.text();
+    const contentType = res.headers.get("content-type") ?? "application/json";
+
+    // For HTML responses (e.g. Swagger UI), rewrite relative asset paths
+    // so they resolve correctly regardless of trailing slash in the browser URL.
+    if (contentType.includes("text/html")) {
+      let html = await res.text();
+      // Replace ./some-asset with /indexer-api/api-docs/some-asset
+      const base = `/indexer-api/${proxyPath.replace(/\/$/, "")}`;
+      html = html.replace(/"\.\//g, `"${base}/`);
+      html = html.replace(/'\.\//g, `'${base}/`);
+      return new NextResponse(html, {
+        status: res.status,
+        headers: {
+          "content-type": contentType,
+          "cache-control": res.headers.get("cache-control") ?? "no-store",
+        },
+      });
+    }
+
+    const body = await res.arrayBuffer();
 
     return new NextResponse(body, {
       status: res.status,
       headers: {
-        "content-type": res.headers.get("content-type") ?? "application/json",
+        "content-type": contentType,
         "cache-control": res.headers.get("cache-control") ?? "no-store",
       },
     });
