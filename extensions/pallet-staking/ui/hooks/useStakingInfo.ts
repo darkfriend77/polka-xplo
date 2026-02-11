@@ -25,7 +25,7 @@ export function useStakingInfo(apiUrl: string) {
         setLoading(true);
         const res = await fetch(`${apiUrl}/api/staking/stats`);
         if (!res.ok) throw new Error("Failed to fetch staking stats");
-        const data = await res.json();
+        const data: StakingStats = await res.json();
         setStats(data);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unknown error");
