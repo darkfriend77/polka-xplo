@@ -840,3 +840,35 @@ export async function getDatabaseSize(): Promise<{
     })),
   };
 }
+
+// ============================================================
+// Repair Queries — fix mis-decoded extrinsics
+// ============================================================
+
+/**
+ * Find extrinsics whose module or call contains the placeholder pattern
+ * (e.g. "Pallet(217)", "call(56)") indicating a decoding failure.
+ * Returns the block heights that need re-processing.
+ */
+export async function getBrokenExtrinsicBlocks(limit = 1000): Promise<number[]> {
+  const result = await query<{ block_height: number }>(
+    `SELECT DISTINCT block_height FROM extrinsics
+     WHERE module ~ '^[Pp]allet\\(' OR call ~ '^call\\('
+     ORDER BY block_height
+     LIMIT $1`,
+    [limit],
+  );
+  return result.rows.map((r) => Number(r.block_height));
+}
+
+/**
+ * Delete extrinsics for a specific block so they can be re-inserted
+ * with corrected module/call names.
+ */
+export async function deleteExtrinsicsForBlock(
+  blockHeight: number,
+  client?: DbClient,
+): Promise<void> {
+  const exec = client ? client.query.bind(client) : query;
+  await exec(`DELETE FROM extrinsics WHERE block_height = $1`, [blockHeight]);
+}

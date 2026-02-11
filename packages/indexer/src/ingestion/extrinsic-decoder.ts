@@ -100,12 +100,10 @@ const SIGNED_EXTENSION_PARSERS: Record<string, ExtensionParser> = {
     return o;
   },
 
-  // Metadata hash check: 0x00 = Disabled, 0x01 = Some(hash: [u8; 32])
-  CheckMetadataHash: (bytes, o) => {
-    const mode = bytes[o++];
-    if (mode === 1) o += 32;
-    return o;
-  },
+  // Metadata hash check — the mode byte (0=Disabled, 1=Enabled) is the only
+  // "extra" data included in the extrinsic body.  The actual 32-byte hash
+  // lives in `additionalSigned` (signed over but NOT embedded).
+  CheckMetadataHash: (_bytes, o) => o + 1,
 };
 
 // ── Event Storage ─────────────────────────────────────────────────────────────
@@ -510,6 +508,8 @@ export class ExtrinsicDecoder {
           const parser = SIGNED_EXTENSION_PARSERS[extId];
           if (parser) {
             offset = parser(bytes, offset);
+          } else {
+            console.warn(`[ExtrinsicDecoder] Unknown signed extension "${extId}" — offset may drift`);
           }
         }
       }
