@@ -93,7 +93,9 @@ export async function onExtrinsic(_ctx: BlockContext, _extrinsic: Extrinsic): Pr
 
 /** Return the SQL for this extension's migrations */
 export function getMigrationSQL(): string {
-  const migrationPath = path.join(__dirname, "..", "migrations", "001_governance.sql");
+  // When compiled, __dirname = <ext>/dist/indexer, so go up two levels to ext root
+  const extRoot = path.join(__dirname, "..", "..");
+  const migrationPath = path.join(extRoot, "migrations", "001_governance.sql");
   return fs.readFileSync(migrationPath, "utf-8");
 }
 

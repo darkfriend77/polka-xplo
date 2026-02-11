@@ -50,8 +50,8 @@ export class PluginRegistry {
 
         console.log(`[Registry] Found extension: ${manifest.name} (${manifest.id})`);
 
-        // Load the extension handler module
-        const handlerPath = path.join(extensionsDir, entry.name, "indexer", "event-handlers.js");
+        // Load the extension handler module (compiled output in dist/)
+        const handlerPath = path.join(extensionsDir, entry.name, "dist", "indexer", "event-handlers.js");
 
         let extension: PalletExtension = { manifest };
 

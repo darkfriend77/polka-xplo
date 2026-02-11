@@ -10,6 +10,7 @@ COPY packages/db/package.json ./packages/db/
 COPY packages/indexer/package.json ./packages/indexer/
 COPY packages/web/package.json ./packages/web/
 COPY extensions/pallet-staking/package.json ./extensions/pallet-staking/
+COPY extensions/ext-governance/package.json ./extensions/ext-governance/
 
 # Install all dependencies (workspaces need the full graph)
 RUN npm install
@@ -25,6 +26,10 @@ COPY chain-config.json ./
 RUN npx tsc -p packages/shared/tsconfig.json
 RUN npx tsc -p packages/db/tsconfig.json
 RUN npx tsc -p packages/indexer/tsconfig.json
+
+# Build extensions
+RUN npx tsc -p extensions/pallet-staking/tsconfig.json
+RUN npx tsc -p extensions/ext-governance/tsconfig.json
 
 # --- Production stage ---
 FROM node:20-slim AS runner
@@ -50,7 +55,9 @@ COPY --from=build /app/packages/db/dist/ ./packages/db/dist/
 COPY packages/db/src/migrations/ ./packages/db/src/migrations/
 
 COPY --from=build /app/packages/indexer/dist/ ./packages/indexer/dist/
-COPY extensions/ ./extensions/
+
+# Copy extension manifests, migrations, and compiled JS
+COPY --from=build /app/extensions/ ./extensions/
 COPY chain-config.json ./
 
 EXPOSE 3001
