@@ -127,9 +127,25 @@ export interface EventsResponse {
   hasMore: boolean;
 }
 
-export async function getEvents(limit = 25, offset = 0, module?: string): Promise<EventsResponse> {
-  const params = `limit=${limit}&offset=${offset}${module ? `&module=${encodeURIComponent(module)}` : ""}`;
+export async function getEvents(
+  limit = 25,
+  offset = 0,
+  module?: string,
+  eventNames?: string[],
+): Promise<EventsResponse> {
+  let params = `limit=${limit}&offset=${offset}`;
+  if (module) params += `&module=${encodeURIComponent(module)}`;
+  if (eventNames && eventNames.length > 0) params += `&event=${encodeURIComponent(eventNames.join(","))}`;
   return fetchJson(`/api/events?${params}`);
+}
+
+export interface EventModuleInfo {
+  module: string;
+  events: string[];
+}
+
+export async function getEventModules(): Promise<{ modules: EventModuleInfo[] }> {
+  return fetchJson("/api/events/modules");
 }
 
 // ---- Accounts ----

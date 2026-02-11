@@ -250,25 +250,66 @@ export async function getEventsList(
   limit = 25,
   offset = 0,
   module?: string,
+  eventNames?: string[],
 ): Promise<{ data: ExplorerEvent[]; total: number }> {
-  const whereData = module ? `WHERE module = $3` : ``;
-  const whereCount = module ? `WHERE module = $1` : ``;
-  const params: unknown[] = module ? [limit, offset, module] : [limit, offset];
+  const conditions: string[] = [];
+  const dataParams: unknown[] = [limit, offset];
+  const countParams: unknown[] = [];
+
+  if (module) {
+    dataParams.push(module);
+    countParams.push(module);
+    conditions.push(`module = $${dataParams.length}`);
+  }
+  if (eventNames && eventNames.length > 0) {
+    const placeholders = eventNames.map((e) => {
+      dataParams.push(e);
+      countParams.push(e);
+      return `$${dataParams.length}`;
+    });
+    conditions.push(`event IN (${placeholders.join(", ")})`);
+  }
+
+  const whereData = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : ``;
+  // Count params use 1-based indexing
+  const countConditions: string[] = [];
+  let ci = 0;
+  if (module) countConditions.push(`module = $${++ci}`);
+  if (eventNames && eventNames.length > 0) {
+    const cp = eventNames.map(() => `$${++ci}`);
+    countConditions.push(`event IN (${cp.join(", ")})`);
+  }
+  const whereCount = countConditions.length > 0 ? `WHERE ${countConditions.join(" AND ")}` : ``;
+
   const [dataRes, countRes] = await Promise.all([
     query<Record<string, unknown>>(
       `SELECT id, block_height, extrinsic_id, index, module, event, data, phase_type, phase_index
        FROM events ${whereData} ORDER BY block_height DESC, index DESC LIMIT $1 OFFSET $2`,
-      params,
+      dataParams,
     ),
     query<{ count: string }>(
       `SELECT COUNT(*) AS count FROM events ${whereCount}`,
-      module ? [module] : [],
+      countParams,
     ),
   ]);
   return {
     data: dataRes.rows.map(mapEvent),
     total: parseInt(countRes.rows[0].count, 10),
   };
+}
+
+/** Get distinct modules and their event types from the events table */
+export async function getEventModules(): Promise<{ module: string; events: string[] }[]> {
+  const result = await query<{ module: string; event: string }>(
+    `SELECT DISTINCT module, event FROM events ORDER BY module, event`,
+  );
+  const map = new Map<string, string[]>();
+  for (const row of result.rows) {
+    const existing = map.get(row.module) ?? [];
+    existing.push(row.event);
+    map.set(row.module, existing);
+  }
+  return Array.from(map.entries()).map(([module, events]) => ({ module, events }));
 }
 
 export async function getTransfersList(
