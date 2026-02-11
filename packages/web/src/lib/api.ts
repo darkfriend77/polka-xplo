@@ -3,9 +3,12 @@
  * Provides typed fetch wrappers for all endpoints.
  */
 
-// Use non-NEXT_PUBLIC_ env var for server-side fetches (Server Components / ISR),
-// falling back to NEXT_PUBLIC_ for client-side fetches and localhost for dev.
-const API_BASE = process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+// Server-side (SSR): use API_URL for direct Docker-internal access.
+// Client-side (browser): use /indexer-api proxy through Next.js rewrites.
+const API_BASE =
+  typeof window === "undefined"
+    ? (process.env.API_URL ?? "http://localhost:3001")
+    : "/indexer-api";
 
 async function fetchJson<T>(path: string): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {

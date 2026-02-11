@@ -66,7 +66,6 @@ services:
       - explorer-indexer
     environment:
       API_URL: http://explorer-indexer:3001
-      NEXT_PUBLIC_API_URL: http://localhost:3001
       NEXT_PUBLIC_CHAIN_ID: polkadot
     ports:
       - "3000:3000"

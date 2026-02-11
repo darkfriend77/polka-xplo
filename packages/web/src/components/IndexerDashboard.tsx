@@ -3,7 +3,8 @@
 import { useEffect, useState, useCallback } from "react";
 import type { IndexerStatusResponse } from "@/lib/api";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+// Use the Next.js rewrite proxy — works from any machine without knowing the indexer IP.
+const API_BASE = "/indexer-api";
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 B";
