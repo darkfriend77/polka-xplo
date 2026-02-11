@@ -29,6 +29,7 @@ ENV NEXT_PUBLIC_CHAIN_ID=$NEXT_PUBLIC_CHAIN_ID
 
 # Build the Next.js frontend
 ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_OPTIONS="--max-old-space-size=4096"
 RUN cd packages/web && npx next build
 
 # --- Production stage ---
