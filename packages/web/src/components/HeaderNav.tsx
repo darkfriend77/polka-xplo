@@ -73,6 +73,7 @@ export function HeaderNav({ apiDocsUrl }: { apiDocsUrl: string }) {
     { href: "/transfers", label: "Transfers" },
     { href: "/accounts", label: "Accounts" },
     { href: "/events", label: "Events" },
+    { href: "/assets", label: "Assets" },
     { href: "/logs", label: "Logs" },
     { href: "/runtime", label: "Runtime" },
   ];
