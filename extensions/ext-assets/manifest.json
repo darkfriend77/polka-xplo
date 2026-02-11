@@ -1,0 +1,24 @@
+{
+  "id": "ext-assets",
+  "name": "Assets",
+  "version": "1.0.0",
+  "description": "Tracks Assets pallet — asset creation, metadata, supply changes (mint/burn), and transfers.",
+  "palletId": "Assets",
+  "supportedEvents": [
+    "Assets.ForceCreated",
+    "Assets.Created",
+    "Assets.MetadataSet",
+    "Assets.MetadataCleared",
+    "Assets.Issued",
+    "Assets.Burned",
+    "Assets.Transferred",
+    "Assets.AssetStatusChanged",
+    "Assets.Frozen",
+    "Assets.Thawed",
+    "Assets.OwnerChanged",
+    "Assets.TeamChanged",
+    "Assets.Destroyed"
+  ],
+  "supportedCalls": [],
+  "dependencies": []
+}

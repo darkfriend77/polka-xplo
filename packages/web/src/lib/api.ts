@@ -481,3 +481,57 @@ export async function getTechCommProposal(
 ): Promise<{ proposal: GovernanceMotion; votes: GovernanceVote[] }> {
   return fetchJson(`/api/governance/techcomm/proposals/${index}`);
 }
+
+// ---- Assets ----
+
+export interface Asset {
+  asset_id: number;
+  owner: string | null;
+  admin: string | null;
+  issuer: string | null;
+  freezer: string | null;
+  name: string | null;
+  symbol: string | null;
+  decimals: number;
+  is_frozen: boolean;
+  supply: string;
+  status: string;
+  created_block: number;
+  updated_block: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AssetTransfer {
+  id: number;
+  asset_id: number;
+  block_height: number;
+  extrinsic_id: string | null;
+  from_address: string;
+  to_address: string;
+  amount: string;
+  created_at: string;
+}
+
+export async function getAssets(
+  limit = 25,
+  offset = 0,
+  status?: string,
+): Promise<{ data: Asset[]; total: number }> {
+  const params = `limit=${limit}&offset=${offset}${status ? `&status=${status}` : ""}`;
+  return fetchJson(`/api/assets?${params}`);
+}
+
+export async function getAsset(
+  assetId: number,
+): Promise<{ asset: Asset; recentTransfers: AssetTransfer[] }> {
+  return fetchJson(`/api/assets/${assetId}`);
+}
+
+export async function getAssetTransfers(
+  assetId: number,
+  limit = 25,
+  offset = 0,
+): Promise<{ data: AssetTransfer[]; total: number }> {
+  return fetchJson(`/api/assets/${assetId}/transfers?limit=${limit}&offset=${offset}`);
+}
