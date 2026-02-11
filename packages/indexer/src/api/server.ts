@@ -26,6 +26,7 @@ import {
   getSpecVersions,
   getBlockHashForSpecVersion,
   getDigestLogs,
+  query,
 } from "@polka-xplo/db";
 import { detectSearchType, normalizeAddress } from "@polka-xplo/shared";
 import { metrics } from "../metrics.js";
@@ -1377,8 +1378,8 @@ export function createApiServer(
         query(`SELECT status, COUNT(*) as count FROM gov_techcomm_proposals GROUP BY status`),
       ]);
 
-      const toMap = (rows: { status: string; count: string }[]) =>
-        Object.fromEntries(rows.map((r) => [r.status, Number(r.count)]));
+      const toMap = (rows: Record<string, unknown>[]) =>
+        Object.fromEntries(rows.map((r) => [String(r.status), Number(r.count)]));
 
       res.json({
         referenda: toMap(referenda.rows),
