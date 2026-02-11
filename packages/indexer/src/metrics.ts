@@ -114,11 +114,16 @@ class IndexerMetrics {
   /** Get a snapshot of all metrics for the API */
   getSnapshot(): MetricsSnapshot {
     const now = Date.now();
-    const oneMinuteAgo = now - 60_000;
-    const oneHourAgo = now - 3_600_000;
 
-    const blocksPerMinute = this.blockTimestamps.filter((t) => t >= oneMinuteAgo).length;
-    const blocksPerHour = this.blockTimestamps.filter((t) => t >= oneHourAgo).length;
+    // Compute rate from actual buffer time span to avoid ring-buffer capping.
+    // When backfilling at high speed the 7200-entry buffer fills in ~72s,
+    // so counting entries in 1-hour window would just return the buffer size.
+    const bufferLen = this.blockTimestamps.length;
+    const oldestTs = bufferLen > 0 ? this.blockTimestamps[0]! : now;
+    const bufferSpanSec = Math.max(1, (now - oldestTs) / 1000);
+    const ratePerSec = bufferLen / bufferSpanSec;
+    const blocksPerMinute = Math.round(ratePerSec * 60);
+    const blocksPerHour = Math.round(ratePerSec * 3600);
 
     const blocksRemaining = Math.max(0, this.chainTip - this.indexedHeight);
     const syncPercent =
