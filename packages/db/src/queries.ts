@@ -854,6 +854,7 @@ export async function getBrokenExtrinsicBlocks(limit = 1000): Promise<number[]> 
   const result = await query<{ block_height: number }>(
     `SELECT DISTINCT block_height FROM extrinsics
      WHERE module ~ '^[Pp]allet\\(' OR call ~ '^call\\('
+        OR module = 'Unknown'
      ORDER BY block_height
      LIMIT $1`,
     [limit],
