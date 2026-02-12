@@ -54,8 +54,10 @@ The `chain-config.json` file at the project root defines all supported chains:
       "addressPrefix": 1328,
       "tokenSymbol": "AJUN",
       "tokenDecimals": 12,
-      "colorTheme": "#F97316",
+      "colorTheme": "#6290AF",
+      "logo": "/logos/ajuna.svg",
       "banner": "/banners/ajuna.svg",
+      "brand": "/brand/ajuna.svg",
       "isParachain": true,
       "relayChain": "polkadot"
     }
@@ -75,9 +77,12 @@ The `chain-config.json` file at the project root defines all supported chains:
 | `tokenSymbol`    | `string`   | Yes      | Native token symbol (e.g., `DOT`, `KSM`, `AJUN`)  |
 | `tokenDecimals`  | `number`   | Yes      | Token decimal places                               |
 | `colorTheme`     | `string`   | Yes      | Hex color for UI branding                          |
+| `logo`           | `string`   | No       | Path to logo image (relative to `/public` or URL)  |
 | `banner`         | `string`   | No       | Path to banner image (relative to `/public` or URL), shown behind header |
+| `brand`          | `string`   | No       | Path to brand wordmark image, shown in header in place of logo + name |
 | `isParachain`    | `boolean`  | No       | Whether this is a parachain                        |
 | `relayChain`     | `string`   | No       | Parent relay chain ID                              |
+| `addressType`    | `string`   | No       | Address format: `"SS58"` (default) or `"H160"` (for EVM parachains like Moonbeam) |
 
 ### Adding a Custom Chain
 
@@ -92,13 +97,18 @@ The `chain-config.json` file at the project root defines all supported chains:
   "tokenSymbol": "MYC",
   "tokenDecimals": 12,
   "colorTheme": "#FF6600",
+  "logo": "/logos/mychain.svg",
   "banner": "/banners/mychain.svg",
+  "brand": "/brand/mychain.svg",
   "isParachain": true,
   "relayChain": "polkadot"
 }
 ```
 
-2. Place your banner image in `packages/web/public/banners/mychain.svg` (or `.png`, `.jpg`).
+2. Place your assets in `packages/web/public/`:
+   - Logo: `logos/mychain.svg`
+   - Banner: `banners/mychain.svg` (recommended: 1440 × 220 SVG)
+   - Brand wordmark (optional): `brand/mychain.svg`
 
 3. Set `CHAIN_ID=mychain` and `ARCHIVE_NODE_URL=wss://rpc.mychain.network` in your environment.
 

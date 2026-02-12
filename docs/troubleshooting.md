@@ -127,7 +127,7 @@ If a migration file has a syntax error, the indexer will log it at startup. Fix 
 **Possible causes:**
 
 1. **Indexer API not running** — Start it: `npm run dev -w packages/indexer`
-2. **Wrong API URL** — The frontend reads `NEXT_PUBLIC_INDEXER_URL` (defaults to `http://localhost:3001`)
+2. **Wrong API URL** — The frontend reads `NEXT_PUBLIC_API_URL` (defaults to `http://localhost:3001`)
 3. **CORS** — The indexer API allows `*` origins by default. If behind a reverse proxy, ensure headers pass through.
 
 ### Balance showing 0 or wrong decimal places
@@ -160,7 +160,7 @@ The `useLiveBalance` hook subscribes via Polkadot-API (PAPI). If the RPC endpoin
 | `connect ECONNREFUSED :6379`                 | Redis not running                  | `docker compose up -d explorer-redis`     |
 | `PAPI client disconnected`                   | RPC endpoint flaky                 | Add multiple RPC URLs                     |
 | `relation "blocks" does not exist`           | Migrations not run                 | `npm run migrate -w packages/db`          |
-| `fetch failed` in Next.js                    | Indexer API unreachable            | Check `NEXT_PUBLIC_INDEXER_URL`           |
+| `fetch failed` in Next.js                    | Indexer API unreachable            | Check `NEXT_PUBLIC_API_URL`               |
 | Docker build OOM                             | Node heap too small                | Set `NODE_OPTIONS=--max-old-space-size=4096` |
 
 ---

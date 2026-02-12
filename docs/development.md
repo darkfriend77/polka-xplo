@@ -3,7 +3,7 @@
 ## Prerequisites
 
 - **Node.js** 20+
-- **npm** 9+
+- **npm** 10+
 - **PostgreSQL** 16 (local or Docker)
 - **Redis** 7 (local or Docker)
 
@@ -118,11 +118,11 @@ npx vitest run --coverage
 
 | File                              | What it tests                                |
 | --------------------------------- | -------------------------------------------- |
-| `shared/__tests__/config.test.ts` | Chain config loading & field validation       |
-| `shared/__tests__/types.test.ts`  | Type guards and utility types                 |
-| `db/__tests__/queries.test.ts`    | SQL query builder edge cases                  |
-| `indexer/__tests__/hex-utils.test.ts`     | Hex ↔ bytes conversion, edge cases   |
-| `indexer/__tests__/block-processor.test.ts` | Block processing flow              |
+| `shared/__tests__/config-utils.test.ts`   | Chain config loading & field validation |
+| `shared/__tests__/ss58.test.ts`           | SS58 address encoding & decoding        |
+| `indexer/__tests__/hex-utils.test.ts`     | Hex ↔ bytes conversion, edge cases      |
+| `indexer/__tests__/event-utils.test.ts`   | Event extraction & correlation          |
+| `web/src/lib/__tests__/format.test.ts`    | Balance & number formatting             |
 
 ### Writing tests
 
