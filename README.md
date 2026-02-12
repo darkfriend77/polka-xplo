@@ -8,7 +8,7 @@ Polka-Xplo ingests, indexes, and serves blockchain data (blocks, extrinsics, eve
 
 ```bash
 # Clone
-git clone https://github.com/darkfriend77/polka-xplo.git && cd polka-xplo
+git clone https://github.com/10igma/polka-xplo.git && cd polka-xplo
 
 # Launch (Ajuna Network)
 docker compose -f docker-compose.yml -f docker-compose.ajuna.yml up -d

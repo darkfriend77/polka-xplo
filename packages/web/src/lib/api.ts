@@ -285,6 +285,10 @@ export interface ChainStats {
   signedExtrinsics: number;
   transfers: number;
   totalAccounts: number;
+  existentialDeposit: string;
+  tokenDecimals: number;
+  /** Parachain ID from ParachainInfo pallet, or null for relay chains */
+  paraId: number | null;
 }
 
 export async function getStats(): Promise<ChainStats> {

@@ -108,6 +108,7 @@ REDIS_URL=redis://localhost:6379
 ARCHIVE_NODE_URL=wss://rpc-para.ajuna.network,wss://ajuna.ibp.network,wss://ajuna.dotters.network
 CHAIN_ID=ajuna
 NEXT_PUBLIC_API_URL=http://localhost:3001
+NEXT_PUBLIC_WS_URL=ws://localhost:3001
 NEXT_PUBLIC_CHAIN_ID=ajuna
 ```
 

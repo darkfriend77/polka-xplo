@@ -1,4 +1,4 @@
-import { DEFAULT_CHAINS, type ChainConfig } from "@polka-xplo/shared";
+import { DEFAULT_CHAINS, type ChainConfig, type ChainSocialLinks } from "@polka-xplo/shared";
 
 /**
  * Theme / branding configuration for the explorer.
@@ -26,6 +26,12 @@ export interface ThemeConfig {
   banner: string | null;
   /** Optional brand wordmark image used in place of logo + chain name */
   brand: string | null;
+  /** Social / external links (website, twitter, discord, telegram, github) */
+  socialLinks: ChainSocialLinks;
+  /** Whether this chain is a parachain */
+  isParachain: boolean;
+  /** Name of the relay chain (e.g. "polkadot", "kusama") */
+  relayChain: string | null;
 }
 
 /** Derive a ThemeConfig from a ChainConfig */
@@ -37,9 +43,12 @@ function fromChain(chain: ChainConfig): ThemeConfig {
     logo: chain.logo ?? null,
     banner: chain.banner ?? null,
     brand: chain.brand ?? null,
+    socialLinks: chain.socialLinks ?? {},
     tokenSymbol: chain.tokenSymbol,
     tokenDecimals: chain.tokenDecimals,
     addressPrefix: chain.addressPrefix,
+    isParachain: chain.isParachain ?? false,
+    relayChain: chain.relayChain ?? null,
   };
 }
 
@@ -51,9 +60,12 @@ const FALLBACK_THEME: ThemeConfig = {
   logo: null,
   banner: null,
   brand: null,
+  socialLinks: {},
   tokenSymbol: "UNIT",
   tokenDecimals: 12,
   addressPrefix: 42,
+  isParachain: false,
+  relayChain: null,
 };
 
 /**

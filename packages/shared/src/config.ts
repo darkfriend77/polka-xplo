@@ -16,6 +16,11 @@ export const DEFAULT_CHAINS: ChainConfig[] = [
     colorTheme: "#E6007A",
     logo: "/logos/polkadot.svg",
     banner: "/banners/polkadot.svg",
+    socialLinks: {
+      website: "https://polkadot.network",
+      twitter: "https://x.com/Polkadot",
+      github: "https://github.com/paritytech",
+    },
   },
   {
     id: "kusama",
@@ -31,6 +36,11 @@ export const DEFAULT_CHAINS: ChainConfig[] = [
     colorTheme: "#000000",
     logo: "/logos/kusama.svg",
     banner: "/banners/kusama.svg",
+    socialLinks: {
+      website: "https://kusama.network",
+      twitter: "https://x.com/kusamanetwork",
+      github: "https://github.com/paritytech",
+    },
   },
   {
     id: "assethub",
@@ -42,6 +52,10 @@ export const DEFAULT_CHAINS: ChainConfig[] = [
     colorTheme: "#48CC81",
     logo: "/logos/assethub.svg",
     banner: "/banners/assethub.svg",
+    socialLinks: {
+      website: "https://polkadot.network",
+      github: "https://github.com/paritytech",
+    },
     isParachain: true,
     relayChain: "polkadot",
   },
@@ -56,6 +70,13 @@ export const DEFAULT_CHAINS: ChainConfig[] = [
     logo: "/logos/ajuna.svg",
     banner: "/banners/ajuna.svg",
     brand: "/brand/ajuna.svg",
+    socialLinks: {
+      website: "https://ajuna.io",
+      twitter: "https://x.com/AjunaNetwork",
+      discord: "https://discord.gg/cE72GYcFgY",
+      telegram: "https://t.me/AjunaNetwork",
+      github: "https://github.com/ajuna-network",
+    },
     isParachain: true,
     relayChain: "polkadot",
   },

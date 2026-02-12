@@ -117,3 +117,53 @@ export async function getRuntimeSummary(
   runtimeCache.set(specVersion, summary);
   return summary;
 }
+
+// ============================================================
+// Constant extraction from runtime metadata
+// ============================================================
+
+/** Cached existential deposit value (only changes on runtime upgrades). */
+let cachedED: string | null = null;
+
+/**
+ * Extract the Balances.ExistentialDeposit constant from the latest runtime metadata.
+ *
+ * Fetches `state_getMetadata` (no block hash → latest), decodes it, and
+ * reads the u128 LE value from the Balances pallet constants.
+ * The result is cached for the lifetime of the process since it only
+ * changes on runtime upgrades (which restart the indexer).
+ */
+export async function getExistentialDeposit(rpcPool: RpcPool): Promise<string> {
+  if (cachedED !== null) return cachedED;
+
+  const metaHex = await rpcPool.call<string>("state_getMetadata", []);
+  const metaBytes = hexToBytes(metaHex);
+  const decoded: any = decAnyMetadata(metaBytes);
+  const pallets = decoded.metadata.value.pallets as Array<{
+    name: string;
+    constants?: Array<{ name: string; value: Uint8Array }>;
+  }>;
+
+  for (const pallet of pallets) {
+    if (pallet.name === "Balances") {
+      for (const constant of pallet.constants ?? []) {
+        if (constant.name === "ExistentialDeposit") {
+          const bytes =
+            constant.value instanceof Uint8Array
+              ? constant.value
+              : hexToBytes(String(constant.value));
+          // u128 little-endian
+          let value = 0n;
+          for (let i = 0; i < 16; i++) {
+            value |= BigInt(bytes[i]) << BigInt(i * 8);
+          }
+          cachedED = value.toString();
+          return cachedED;
+        }
+      }
+    }
+  }
+
+  cachedED = "0";
+  return cachedED;
+}

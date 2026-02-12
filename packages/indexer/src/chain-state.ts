@@ -409,3 +409,84 @@ export async function getLiveIdentity(
     deposit,
   };
 }
+
+// ============================================================
+// System Properties (cached)
+// ============================================================
+
+export interface SystemProperties {
+  tokenDecimals: number;
+  tokenSymbol: string;
+  ss58Format: number;
+}
+
+let cachedSystemProperties: SystemProperties | null = null;
+
+/**
+ * Query `system_properties` via RPC and return token decimals, symbol,
+ * and SS58 format. Cached for the process lifetime (values are baked
+ * into the chain spec and never change at runtime).
+ */
+export async function getSystemProperties(rpcPool: RpcPool): Promise<SystemProperties> {
+  if (cachedSystemProperties) return cachedSystemProperties;
+
+  const raw = await rpcPool.call<Record<string, unknown>>("system_properties", []);
+
+  cachedSystemProperties = {
+    tokenDecimals:
+      typeof raw.tokenDecimals === "number"
+        ? raw.tokenDecimals
+        : Array.isArray(raw.tokenDecimals)
+          ? (raw.tokenDecimals[0] as number)
+          : 10,
+    tokenSymbol:
+      typeof raw.tokenSymbol === "string"
+        ? raw.tokenSymbol
+        : Array.isArray(raw.tokenSymbol)
+          ? (raw.tokenSymbol[0] as string)
+          : "DOT",
+    ss58Format:
+      typeof raw.ss58Format === "number" ? raw.ss58Format : 42,
+  };
+
+  return cachedSystemProperties;
+}
+
+// ============================================================
+// ParachainInfo.ParachainId (cached)
+// ============================================================
+
+let cachedParaId: number | null | undefined = undefined; // undefined = not yet queried
+
+/**
+ * Query the `ParachainInfo.ParachainId` storage value.
+ * Returns the parachain ID as a number, or null if the pallet doesn't exist
+ * (i.e. the chain is a relay chain). Cached for the process lifetime.
+ *
+ * Storage key: twox128("ParachainInfo") + twox128("ParachainId")
+ * Value: u32 LE
+ */
+export async function getParachainId(rpcPool: RpcPool): Promise<number | null> {
+  if (cachedParaId !== undefined) return cachedParaId;
+
+  const prefix =
+    bytesToHex(Twox128(new TextEncoder().encode("ParachainInfo"))) +
+    bytesToHex(Twox128(new TextEncoder().encode("ParachainId")));
+
+  const hex = await rpcPool.call<string | null>("state_getStorage", ["0x" + prefix]);
+  if (!hex) {
+    cachedParaId = null;
+    return null;
+  }
+
+  const bytes = hexToBytes(hex);
+  if (bytes.length < 4) {
+    cachedParaId = null;
+    return null;
+  }
+
+  // u32 little-endian
+  cachedParaId =
+    (bytes[0] | (bytes[1] << 8) | (bytes[2] << 16) | (bytes[3] << 24)) >>> 0;
+  return cachedParaId;
+}

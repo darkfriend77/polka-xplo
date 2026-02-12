@@ -45,7 +45,11 @@ The `chain-config.json` file at the project root defines all supported chains:
       "tokenSymbol": "DOT",
       "tokenDecimals": 10,
       "colorTheme": "#E6007A",
-      "banner": "/banners/polkadot.svg"
+      "banner": "/banners/polkadot.svg",
+      "socialLinks": {
+        "website": "https://polkadot.network",
+        "twitter": "https://x.com/Polkadot"
+      }
     },
     {
       "id": "ajuna",
@@ -54,8 +58,17 @@ The `chain-config.json` file at the project root defines all supported chains:
       "addressPrefix": 1328,
       "tokenSymbol": "AJUN",
       "tokenDecimals": 12,
-      "colorTheme": "#F97316",
+      "colorTheme": "#6290AF",
+      "logo": "/logos/ajuna.svg",
       "banner": "/banners/ajuna.svg",
+      "brand": "/brand/ajuna.svg",
+      "socialLinks": {
+        "website": "https://ajuna.io",
+        "twitter": "https://x.com/AjunaNetwork",
+        "discord": "https://discord.gg/ajuna",
+        "telegram": "https://t.me/AjunaNetwork",
+        "github": "https://github.com/AjunaNetwork"
+      },
       "isParachain": true,
       "relayChain": "polkadot"
     }
@@ -75,9 +88,27 @@ The `chain-config.json` file at the project root defines all supported chains:
 | `tokenSymbol`    | `string`   | Yes      | Native token symbol (e.g., `DOT`, `KSM`, `AJUN`)  |
 | `tokenDecimals`  | `number`   | Yes      | Token decimal places                               |
 | `colorTheme`     | `string`   | Yes      | Hex color for UI branding                          |
+| `logo`           | `string`   | No       | Path to logo image (relative to `/public` or URL)  |
 | `banner`         | `string`   | No       | Path to banner image (relative to `/public` or URL), shown behind header |
+| `brand`          | `string`   | No       | Path to brand wordmark image, shown in header in place of logo + name |
+| `socialLinks`    | `object`   | No       | Social / external links shown on the homepage (see below) |
 | `isParachain`    | `boolean`  | No       | Whether this is a parachain                        |
 | `relayChain`     | `string`   | No       | Parent relay chain ID                              |
+| `addressType`    | `string`   | No       | Address format: `"SS58"` (default) or `"H160"` (for EVM parachains like Moonbeam) |
+
+#### `socialLinks` Object
+
+All fields are optional strings (URLs):
+
+| Field       | Description                            |
+| ----------- | -------------------------------------- |
+| `website`   | Project homepage URL                   |
+| `twitter`   | X / Twitter profile URL                |
+| `discord`   | Discord invite link                    |
+| `telegram`  | Telegram group/channel link            |
+| `github`    | GitHub organization or repo URL        |
+
+These links are displayed as icon buttons in the Basic Info panel on the homepage.
 
 ### Adding a Custom Chain
 
@@ -92,13 +123,24 @@ The `chain-config.json` file at the project root defines all supported chains:
   "tokenSymbol": "MYC",
   "tokenDecimals": 12,
   "colorTheme": "#FF6600",
+  "logo": "/logos/mychain.svg",
   "banner": "/banners/mychain.svg",
+  "brand": "/brand/mychain.svg",
+  "socialLinks": {
+    "website": "https://mychain.network",
+    "twitter": "https://x.com/mychain",
+    "discord": "https://discord.gg/mychain",
+    "telegram": "https://t.me/mychain"
+  },
   "isParachain": true,
   "relayChain": "polkadot"
 }
 ```
 
-2. Place your banner image in `packages/web/public/banners/mychain.svg` (or `.png`, `.jpg`).
+2. Place your assets in `packages/web/public/`:
+   - Logo: `logos/mychain.svg`
+   - Banner: `banners/mychain.svg` (recommended: 1440 × 220 SVG)
+   - Brand wordmark (optional): `brand/mychain.svg`
 
 3. Set `CHAIN_ID=mychain` and `ARCHIVE_NODE_URL=wss://rpc.mychain.network` in your environment.
 

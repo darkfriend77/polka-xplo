@@ -1,7 +1,8 @@
 import Image from "next/image";
 import type { ChainStats } from "@/lib/api";
 import type { ThemeConfig } from "@/lib/theme";
-import { formatNumber } from "@/lib/format";
+import type { ChainSocialLinks } from "@polka-xplo/shared";
+import { formatNumber, formatBalance } from "@/lib/format";
 
 /**
  * SVG icon component for chain data entries.
@@ -36,44 +37,30 @@ const ICONS = {
     "M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1",
   relay:
     "M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
+  deposit:
+    "M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z",
+  decimals:
+    "M7 20l4-16m2 16l4-16M6 9h14M4 15h14",
 };
 
 /**
  * Social / external link icons.
  * Used in the Basic Info panel for chain links.
  */
-function SocialLinks({ chainId }: { chainId: string }) {
-  // Common links per chain — extend as needed
-  const links: Record<string, { icon: string; href: string; label: string }[]> = {
-    ajuna: [
-      { icon: "web", href: "https://ajuna.io", label: "Website" },
-      { icon: "x", href: "https://x.com/AjunaNetwork", label: "X" },
-      { icon: "telegram", href: "https://t.me/AjunaNetwork", label: "Telegram" },
-      { icon: "github", href: "https://github.com/AjunaNetwork", label: "GitHub" },
-      { icon: "discord", href: "https://discord.gg/ajuna", label: "Discord" },
-    ],
-    polkadot: [
-      { icon: "web", href: "https://polkadot.network", label: "Website" },
-      { icon: "x", href: "https://x.com/Polkadot", label: "X" },
-      { icon: "github", href: "https://github.com/polkadot-fellows", label: "GitHub" },
-    ],
-    kusama: [
-      { icon: "web", href: "https://kusama.network", label: "Website" },
-      { icon: "x", href: "https://x.com/kusamanetwork", label: "X" },
-      { icon: "github", href: "https://github.com/polkadot-fellows", label: "GitHub" },
-    ],
-    assethub: [
-      { icon: "web", href: "https://polkadot.network", label: "Website" },
-      { icon: "github", href: "https://github.com/polkadot-fellows", label: "GitHub" },
-    ],
-  };
+function SocialLinks({ socialLinks }: { socialLinks: ChainSocialLinks }) {
+  const links: { icon: string; href: string; label: string }[] = [];
 
-  const chainLinks = links[chainId] ?? [];
-  if (chainLinks.length === 0) return null;
+  if (socialLinks.website) links.push({ icon: "web", href: socialLinks.website, label: "Website" });
+  if (socialLinks.twitter) links.push({ icon: "x", href: socialLinks.twitter, label: "X" });
+  if (socialLinks.telegram) links.push({ icon: "telegram", href: socialLinks.telegram, label: "Telegram" });
+  if (socialLinks.github) links.push({ icon: "github", href: socialLinks.github, label: "GitHub" });
+  if (socialLinks.discord) links.push({ icon: "discord", href: socialLinks.discord, label: "Discord" });
+
+  if (links.length === 0) return null;
 
   return (
     <div className="flex items-center gap-3 mt-3">
-      {chainLinks.map((link) => (
+      {links.map((link) => (
         <a
           key={link.icon}
           href={link.href}
@@ -176,7 +163,7 @@ export function ChainOverview({ theme, stats, specVersion }: ChainOverviewProps)
         </div>
 
         {/* Social / external links */}
-        <SocialLinks chainId={theme.chainId} />
+        <SocialLinks socialLinks={theme.socialLinks} />
       </div>
 
       {/* ── Chain Data ─────────────────────────────────────── */}
@@ -191,7 +178,7 @@ export function ChainOverview({ theme, stats, specVersion }: ChainOverviewProps)
           Chain Data
         </h3>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-5">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-5">
           <DataItem
             icon={ICONS.finalized}
             label="Finalized Blocks"
@@ -212,20 +199,26 @@ export function ChainOverview({ theme, stats, specVersion }: ChainOverviewProps)
             label="Total Accounts"
             value={formatNumber(stats.totalAccounts)}
           />
-          {theme.chainId === "ajuna" || theme.chainId === "assethub" ? (
-            <>
-              <DataItem
-                icon={ICONS.relay}
-                label="Relay Chain"
-                value="Polkadot"
-              />
-              <DataItem
-                icon={ICONS.paraId}
-                label="Polkadot Para ID"
-                value={theme.chainId === "ajuna" ? "2051" : "1000"}
-              />
-            </>
-          ) : null}
+          <DataItem
+            icon={ICONS.deposit}
+            label="Existential Deposit"
+            value={formatBalance(stats.existentialDeposit, stats.tokenDecimals, theme.tokenSymbol)}
+          />
+          <DataItem
+            icon={ICONS.decimals}
+            label="Token Decimals"
+            value={String(stats.tokenDecimals)}
+          />
+          <DataItem
+            icon={ICONS.relay}
+            label="Relay Chain"
+            value={theme.relayChain ? theme.relayChain.charAt(0).toUpperCase() + theme.relayChain.slice(1) : "\u2014"}
+          />
+          <DataItem
+            icon={ICONS.paraId}
+            label="Para ID"
+            value={stats.paraId !== null ? formatNumber(stats.paraId) : "\u2014"}
+          />
         </div>
       </div>
     </div>

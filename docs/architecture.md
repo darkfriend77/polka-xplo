@@ -66,7 +66,9 @@ polka-xplo/
 │   ├── indexer/      # PAPI-based block processor + REST API
 │   └── web/          # Next.js 15 frontend (App Router)
 ├── extensions/
-│   └── pallet-staking/   # Reference pallet extension
+│   ├── ext-assets/       # Asset pallet extension
+│   ├── ext-governance/   # Governance pallet extension
+│   └── pallet-staking/   # Reference staking extension
 ├── chain-config.json     # Multi-chain configuration
 ├── docker-compose.yml    # Full stack deployment
 └── turbo.json            # Build pipeline

@@ -89,6 +89,15 @@ export interface AccountBalance {
 // Chain Configuration Types
 // ============================================================
 
+/** Social / external links for a chain */
+export interface ChainSocialLinks {
+  website?: string;
+  twitter?: string;
+  discord?: string;
+  telegram?: string;
+  github?: string;
+}
+
 export interface ChainConfig {
   id: string;
   name: string;
@@ -103,6 +112,8 @@ export interface ChainConfig {
   banner?: string;
   /** Optional path to a brand wordmark image used in place of logo + name text */
   brand?: string;
+  /** Optional social / external links shown on the homepage */
+  socialLinks?: ChainSocialLinks;
   isParachain?: boolean;
   relayChain?: string;
   addressType?: "SS58" | "H160";

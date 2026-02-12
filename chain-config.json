@@ -8,7 +8,12 @@
       "tokenSymbol": "DOT",
       "tokenDecimals": 10,
       "colorTheme": "#E6007A",
-      "banner": "/banners/polkadot.svg"
+      "banner": "/banners/polkadot.svg",
+      "socialLinks": {
+        "website": "https://polkadot.network",
+        "twitter": "https://x.com/Polkadot",
+        "github": "https://github.com/polkadot-fellows"
+      }
     },
     {
       "id": "kusama",
@@ -18,7 +23,12 @@
       "tokenSymbol": "KSM",
       "tokenDecimals": 12,
       "colorTheme": "#000000",
-      "banner": "/banners/kusama.svg"
+      "banner": "/banners/kusama.svg",
+      "socialLinks": {
+        "website": "https://kusama.network",
+        "twitter": "https://x.com/kusamanetwork",
+        "github": "https://github.com/polkadot-fellows"
+      }
     },
     {
       "id": "assethub",
@@ -29,6 +39,10 @@
       "tokenDecimals": 10,
       "colorTheme": "#48CC81",
       "banner": "/banners/assethub.svg",
+      "socialLinks": {
+        "website": "https://polkadot.network",
+        "github": "https://github.com/polkadot-fellows"
+      },
       "isParachain": true,
       "relayChain": "polkadot"
     },
@@ -55,8 +69,17 @@
       "addressPrefix": 1328,
       "tokenSymbol": "AJUN",
       "tokenDecimals": 12,
-      "colorTheme": "#F0388B",
+      "colorTheme": "#6290AF",
+      "logo": "/logos/ajuna.svg",
       "banner": "/banners/ajuna.svg",
+      "brand": "/brand/ajuna.svg",
+      "socialLinks": {
+        "website": "https://ajuna.io",
+        "twitter": "https://x.com/AjunaNetwork",
+        "discord": "https://discord.gg/ajuna",
+        "telegram": "https://t.me/AjunaNetwork",
+        "github": "https://github.com/AjunaNetwork"
+      },
       "isParachain": true,
       "relayChain": "polkadot"
     }

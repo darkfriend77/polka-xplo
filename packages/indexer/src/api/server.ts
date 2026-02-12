@@ -37,8 +37,8 @@ import {
 } from "@polka-xplo/db";
 import { detectSearchType, normalizeAddress } from "@polka-xplo/shared";
 import { metrics } from "../metrics.js";
-import { getRuntimeSummary } from "../runtime-parser.js";
-import { getLiveBalance, getLiveIdentity, getLiveAssetBalances } from "../chain-state.js";
+import { getRuntimeSummary, getExistentialDeposit } from "../runtime-parser.js";
+import { getLiveBalance, getLiveIdentity, getLiveAssetBalances, getSystemProperties, getParachainId } from "../chain-state.js";
 
 /**
  * The API server exposes indexed blockchain data to the frontend.
@@ -813,11 +813,34 @@ export function createApiServer(
    *                   type: integer
    *                 totalAccounts:
    *                   type: integer
+   *                 existentialDeposit:
+   *                   type: string
+   *                   description: Existential deposit in planck (from runtime metadata)
+   *                 tokenDecimals:
+   *                   type: integer
+   *                   description: Token decimals (from system_properties)
+   *                 paraId:
+   *                   type: integer
+   *                   nullable: true
+   *                   description: Parachain ID (from ParachainInfo pallet, null for relay chains)
    */
   app.get("/api/stats", async (_req, res) => {
     try {
-      const stats = await getChainStats();
-      res.json(stats);
+      const [stats, chainProps] = await Promise.all([
+        getChainStats(),
+        rpcPool
+          ? Promise.all([
+              getExistentialDeposit(rpcPool),
+              getSystemProperties(rpcPool),
+              getParachainId(rpcPool),
+            ]).then(([ed, props, paraId]) => ({
+              existentialDeposit: ed,
+              tokenDecimals: props.tokenDecimals,
+              paraId,
+            }))
+          : Promise.resolve({ existentialDeposit: "0", tokenDecimals: 10, paraId: null }),
+      ]);
+      res.json({ ...stats, ...chainProps });
     } catch {
       res.status(500).json({ error: "Failed to fetch stats" });
     }
