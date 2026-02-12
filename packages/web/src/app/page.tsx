@@ -2,11 +2,12 @@ import {
   getBlocks,
   getStats,
   getTransfers,
+  getSpecVersions,
   type BlockSummary,
   type ChainStats,
   type TransferSummary,
 } from "@/lib/api";
-import { OmniSearch } from "@/components/OmniSearch";
+import { ChainOverview } from "@/components/ChainOverview";
 import { StatsBar } from "@/components/StatsBar";
 import { LatestBlocksCard } from "@/components/LatestBlocksCard";
 import { LatestTransfersCard } from "@/components/LatestTransfersCard";
@@ -15,43 +16,44 @@ import { theme } from "@/lib/theme";
 export const dynamic = "force-dynamic";
 
 /**
- * Home page: statescan-style dashboard with stats bar,
+ * Home page: chain overview panel, stats bar,
  * latest blocks, and latest signed transfers.
  */
 export default async function HomePage() {
   let blocks: BlockSummary[] = [];
   let stats: ChainStats | null = null;
   let transfers: TransferSummary[] = [];
+  let specVersion: number | null = null;
   let error: string | null = null;
 
   try {
-    const [blocksRes, statsRes, transfersRes] = await Promise.all([
+    const [blocksRes, statsRes, transfersRes, specRes] = await Promise.all([
       getBlocks(10, 0),
       getStats(),
       getTransfers(10),
+      getSpecVersions().catch(() => ({ versions: [] })),
     ]);
     blocks = blocksRes.data;
     stats = statsRes;
     transfers = transfersRes;
+    if (specRes.versions.length > 0) {
+      specVersion = specRes.versions[0].specVersion;
+    }
   } catch {
     error = "Unable to connect to the indexer. Is the backend running?";
   }
 
   return (
     <div className="space-y-6">
-      {/* Hero search */}
-      <section className="py-6 text-center space-y-4">
-        <h1 className="text-2xl font-bold text-zinc-100">{theme.name} Explorer</h1>
-        <p className="text-sm text-zinc-400">Search blocks, extrinsics, accounts, and transfers</p>
-        <OmniSearch />
-      </section>
-
       {/* Error banner */}
       {error && (
         <div className="rounded-lg border border-yellow-800/50 bg-yellow-950/30 p-3 text-sm text-yellow-300">
           {error}
         </div>
       )}
+
+      {/* Chain overview */}
+      {stats && <ChainOverview theme={theme} stats={stats} specVersion={specVersion} />}
 
       {/* Stats bar */}
       {stats && <StatsBar stats={stats} />}

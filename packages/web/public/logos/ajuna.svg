@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
   <circle cx="32" cy="32" r="30" fill="#262324"/>
-  <g transform="translate(-15.1,-25.6) scale(0.23)">
+  <g transform="translate(-6.9,-15.6) scale(0.19)">
     <defs>
       <linearGradient id="g1" x1="152.27" y1="234.83" x2="190.97" y2="178.63" gradientUnits="userSpaceOnUse">
         <stop offset="0.15" stop-color="#146BB5"/>

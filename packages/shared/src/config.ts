@@ -52,7 +52,7 @@ export const DEFAULT_CHAINS: ChainConfig[] = [
     addressPrefix: 1328,
     tokenSymbol: "AJUN",
     tokenDecimals: 12,
-    colorTheme: "#F0388B",
+    colorTheme: "#6290AF",
     logo: "/logos/ajuna.svg",
     banner: "/banners/ajuna.svg",
     brand: "/brand/ajuna.svg",

@@ -6,15 +6,15 @@
       <stop offset="100%" stop-color="#1c1a1b"/>
     </linearGradient>
     <radialGradient id="glow1" cx="15%" cy="50%" r="40%">
-      <stop offset="0%" stop-color="#5a3e42" stop-opacity="0.30"/>
+      <stop offset="0%" stop-color="#3a5a6e" stop-opacity="0.30"/>
       <stop offset="100%" stop-color="transparent" stop-opacity="0"/>
     </radialGradient>
     <radialGradient id="glow2" cx="65%" cy="40%" r="35%">
-      <stop offset="0%" stop-color="#4a3235" stop-opacity="0.20"/>
+      <stop offset="0%" stop-color="#2e4a5c" stop-opacity="0.20"/>
       <stop offset="100%" stop-color="transparent" stop-opacity="0"/>
     </radialGradient>
     <radialGradient id="glow3" cx="85%" cy="70%" r="25%">
-      <stop offset="0%" stop-color="#6b4a50" stop-opacity="0.12"/>
+      <stop offset="0%" stop-color="#4a6a80" stop-opacity="0.12"/>
       <stop offset="100%" stop-color="transparent" stop-opacity="0"/>
     </radialGradient>
   </defs>
@@ -23,7 +23,7 @@
   <rect width="1440" height="220" fill="url(#glow2)"/>
   <rect width="1440" height="220" fill="url(#glow3)"/>
   <!-- Hexagonal grid -->
-  <g opacity="0.08" stroke="#7a5a5e" stroke-width="0.8" fill="none">
+  <g opacity="0.08" stroke="#5a7a8e" stroke-width="0.8" fill="none">
     <polygon points="100,40 130,25 160,40 160,70 130,85 100,70"/>
     <polygon points="200,60 230,45 260,60 260,90 230,105 200,90"/>
     <polygon points="320,35 350,20 380,35 380,65 350,80 320,65"/>
@@ -37,7 +37,7 @@
     <polygon points="1280,40 1310,25 1340,40 1340,70 1310,85 1280,70"/>
   </g>
   <!-- Sparkles -->
-  <g opacity="0.07" fill="#8a6a6e">
+  <g opacity="0.07" fill="#6a8a9e">
     <path d="M150,140 L155,150 L165,150 L157,157 L160,167 L150,160 L140,167 L143,157 L135,150 L145,150 Z"/>
     <path d="M380,130 L383,137 L390,137 L385,142 L387,149 L380,144 L373,149 L375,142 L370,137 L377,137 Z"/>
     <path d="M620,145 L625,155 L635,155 L627,162 L630,172 L620,165 L610,172 L613,162 L605,155 L615,155 Z"/>
@@ -46,7 +46,7 @@
     <path d="M1340,130 L1343,137 L1350,137 L1345,142 L1347,149 L1340,144 L1333,149 L1335,142 L1330,137 L1337,137 Z"/>
   </g>
   <!-- Diagonal energy lines -->
-  <g opacity="0.05" stroke="#7a5a5e" stroke-width="1" fill="none">
+  <g opacity="0.05" stroke="#5a7a8e" stroke-width="1" fill="none">
     <line x1="0" y1="200" x2="200" y2="120"/>
     <line x1="200" y1="190" x2="500" y2="130"/>
     <line x1="500" y1="200" x2="800" y2="110"/>

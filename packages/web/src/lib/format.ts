@@ -6,6 +6,13 @@
 
 export { truncateHash, timeAgo } from "@polka-xplo/shared";
 
+/** Add apostrophe thousand separators to a numeric string (integer part only) */
+function addSeparators(numStr: string): string {
+  const [intPart, decPart] = numStr.split(".");
+  const separated = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, "'");
+  return decPart !== undefined ? `${separated}.${decPart}` : separated;
+}
+
 /** Format a balance from raw planck value */
 export function formatBalance(raw: string | null, decimals = 10, symbol = "DOT"): string {
   if (!raw || raw === "0") return `0 ${symbol}`;
@@ -15,15 +22,16 @@ export function formatBalance(raw: string | null, decimals = 10, symbol = "DOT")
     const whole = value / divisor;
     const remainder = value % divisor;
     const decimal = remainder.toString().padStart(decimals, "0").slice(0, 4).replace(/0+$/, "");
-    return `${whole}${decimal ? "." + decimal : ""} ${symbol}`;
+    const formatted = `${whole}${decimal ? "." + decimal : ""}`;
+    return `${addSeparators(formatted)} ${symbol}`;
   } catch {
     return `${raw} planck`;
   }
 }
 
-/** Format a block number with comma separators */
+/** Format a number with apostrophe thousand separators */
 export function formatNumber(n: number): string {
-  return n.toLocaleString("en-US");
+  return addSeparators(n.toString());
 }
 
 /** Format a date from a Unix timestamp */
