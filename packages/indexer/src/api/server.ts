@@ -33,11 +33,12 @@ import {
   dbMetrics,
   getBrokenExtrinsicBlocks,
   truncateOversizedArgs,
+  getRegisteredAssets,
 } from "@polka-xplo/db";
 import { detectSearchType, normalizeAddress } from "@polka-xplo/shared";
 import { metrics } from "../metrics.js";
 import { getRuntimeSummary } from "../runtime-parser.js";
-import { getLiveBalance } from "../chain-state.js";
+import { getLiveBalance, getLiveIdentity, getLiveAssetBalances } from "../chain-state.js";
 
 /**
  * The API server exposes indexed blockchain data to the frontend.
@@ -666,22 +667,29 @@ export function createApiServer(
 
       const account = await getAccount(hexKey);
 
-      // Fetch live balance from chain RPC (always accurate)
+      // Fetch live balance and identity from chain RPC (always accurate)
       let balance = account?.balance ?? null;
+      let identity: Awaited<ReturnType<typeof getLiveIdentity>> = null;
       if (rpcPool) {
         try {
-          const live = await getLiveBalance(rpcPool, hexKey);
-          if (live) {
+          const [live, liveId] = await Promise.allSettled([
+            getLiveBalance(rpcPool, hexKey),
+            getLiveIdentity(rpcPool, hexKey),
+          ]);
+          if (live.status === "fulfilled" && live.value) {
             balance = {
-              free: live.free,
-              reserved: live.reserved,
-              frozen: live.frozen,
-              flags: live.flags,
+              free: live.value.free,
+              reserved: live.value.reserved,
+              frozen: live.value.frozen,
+              flags: live.value.flags,
             };
+          }
+          if (liveId.status === "fulfilled" && liveId.value) {
+            identity = liveId.value;
           }
         } catch (err) {
           // Fall back to DB balance if RPC fails
-          console.warn("[API] Live balance query failed, using DB fallback:", err);
+          console.warn("[API] Live balance/identity query failed, using DB fallback:", err);
         }
       }
 
@@ -692,15 +700,29 @@ export function createApiServer(
 
       const recentExtrinsics = account ? await getExtrinsicsBySigner(hexKey, 20) : [];
 
+      // Fetch live asset balances (ext-assets)
+      let assetBalances: Awaited<ReturnType<typeof getLiveAssetBalances>> = [];
+      if (rpcPool) {
+        try {
+          const registeredAssets = await getRegisteredAssets();
+          if (registeredAssets.length > 0) {
+            assetBalances = await getLiveAssetBalances(rpcPool, hexKey, registeredAssets);
+          }
+        } catch (err) {
+          console.warn("[API] Asset balance query failed:", err);
+        }
+      }
+
       res.json({
         account: {
           address: account?.address ?? hexKey,
           publicKey: account?.publicKey ?? hexKey,
-          identity: account?.identity ?? null,
           lastActiveBlock: account?.lastActiveBlock ?? null,
           createdAtBlock: account?.createdAtBlock ?? null,
         },
         balance,
+        identity,
+        assetBalances,
         recentExtrinsics,
       });
     } catch {

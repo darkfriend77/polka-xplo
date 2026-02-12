@@ -164,11 +164,33 @@ export async function getExtrinsicModules(): Promise<{ modules: ExtrinsicModuleI
 
 // ---- Accounts ----
 
+export interface AssetBalance {
+  assetId: number;
+  name: string;
+  symbol: string;
+  decimals: number;
+  balance: string;
+  status: "Liquid" | "Frozen" | "Blocked";
+}
+
+export interface OnChainIdentity {
+  display: string | null;
+  legal: string | null;
+  web: string | null;
+  riot: string | null;
+  email: string | null;
+  pgpFingerprint: string | null;
+  image: string | null;
+  twitter: string | null;
+  additional: Array<{ key: string; value: string }>;
+  judgements: Array<{ registrarIndex: number; judgement: string }>;
+  deposit: string;
+}
+
 export interface AccountDetail {
   account: {
     address: string;
     publicKey: string;
-    identity: { display?: string } | null;
     lastActiveBlock: number;
     createdAtBlock: number;
   };
@@ -178,6 +200,8 @@ export interface AccountDetail {
     frozen: string;
     flags: string;
   } | null;
+  identity: OnChainIdentity | null;
+  assetBalances: AssetBalance[];
   recentExtrinsics: ExtrinsicSummary[];
 }
 

@@ -947,3 +947,36 @@ export async function truncateOversizedArgs(
   );
   return { updated: result.rows.length };
 }
+
+// ============================================================
+// Assets (ext-assets extension)
+// ============================================================
+
+export interface RegisteredAsset {
+  assetId: number;
+  name: string;
+  symbol: string;
+  decimals: number;
+}
+
+/**
+ * Get all registered assets from the ext-assets table.
+ * Returns empty array if the extension isn't installed (table doesn't exist).
+ */
+export async function getRegisteredAssets(): Promise<RegisteredAsset[]> {
+  try {
+    const result = await query<{ asset_id: number; name: string; symbol: string; decimals: number }>(
+      `SELECT asset_id, name, symbol, decimals FROM assets ORDER BY asset_id`,
+      [],
+    );
+    return result.rows.map((r) => ({
+      assetId: r.asset_id,
+      name: r.name,
+      symbol: r.symbol,
+      decimals: r.decimals,
+    }));
+  } catch {
+    // Table doesn't exist if ext-assets isn't installed
+    return [];
+  }
+}
