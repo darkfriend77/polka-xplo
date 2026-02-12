@@ -66,8 +66,36 @@ export interface RawEvent {
 /**
  * Process a single block: store block, extrinsics, events,
  * update accounts, and invoke extension plugins.
+ *
+ * Retries on deadlock (PostgreSQL error 40P01) which can occur
+ * when concurrent workers upsert the same accounts.
  */
 export async function processBlock(
+  raw: RawBlockData,
+  status: BlockStatus,
+  registry: PluginRegistry,
+): Promise<void> {
+  const MAX_RETRIES = 3;
+
+  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      await processBlockInner(raw, status, registry);
+      return; // success
+    } catch (err: unknown) {
+      const pgCode = (err as { code?: string }).code;
+      if (pgCode === "40P01" && attempt < MAX_RETRIES) {
+        // Deadlock — wait briefly with jitter and retry
+        const delay = 50 + Math.random() * 150 * attempt;
+        console.warn(`[Block ${raw.number}] Deadlock detected, retry ${attempt}/${MAX_RETRIES} in ${delay.toFixed(0)}ms`);
+        await new Promise((r) => setTimeout(r, delay));
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
+async function processBlockInner(
   raw: RawBlockData,
   status: BlockStatus,
   registry: PluginRegistry,
