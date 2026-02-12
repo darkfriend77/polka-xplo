@@ -1,5 +1,6 @@
-import { getExtrinsics, type ExtrinsicsResponse } from "@/lib/api";
+import { getExtrinsics, getExtrinsicModules, type ExtrinsicsResponse } from "@/lib/api";
 import { ExtrinsicsTable } from "@/components/ExtrinsicsTable";
+import { ExtrinsicFilter } from "@/components/ExtrinsicFilter";
 import { Pagination } from "@/components/Pagination";
 import { theme } from "@/lib/theme";
 
@@ -7,62 +8,52 @@ export const dynamic = "force-dynamic";
 
 /**
  * Extrinsics list page — paginated table of all extrinsics.
- * Supports ?signed=true to hide unsigned (inherent) extrinsics.
+ * Supports filtering by signed-only, module, and call.
  */
 export default async function ExtrinsicsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string; signed?: string }>;
+  searchParams: Promise<{ page?: string; signed?: string; module?: string; call?: string }>;
 }) {
   const params = await searchParams;
   const pageSize = 25;
   const page = Math.max(parseInt(params.page ?? "1", 10) || 1, 1);
   const offset = (page - 1) * pageSize;
   const signedOnly = params.signed === "true";
+  const module = params.module || undefined;
+  const call = params.call || undefined;
 
   let extrinsics: ExtrinsicsResponse | null = null;
+  let moduleList: { module: string; calls: string[] }[] = [];
   let error: string | null = null;
 
   try {
-    extrinsics = await getExtrinsics(pageSize, offset, signedOnly);
+    const [extrinsicsRes, modulesRes] = await Promise.all([
+      getExtrinsics(pageSize, offset, signedOnly, module, call),
+      getExtrinsicModules(),
+    ]);
+    extrinsics = extrinsicsRes;
+    moduleList = modulesRes.modules;
   } catch {
     error = "Unable to fetch extrinsics. Is the backend running?";
   }
 
   const totalPages = extrinsics ? Math.ceil(extrinsics.total / pageSize) : 0;
+  const filterLabel = [module, call].filter(Boolean).join(".");
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-zinc-100">Extrinsics</h1>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <h1 className="text-xl font-bold text-zinc-100">
+          Extrinsics{filterLabel ? `: ${filterLabel}` : ""}
+        </h1>
         {extrinsics && (
           <span className="text-sm text-zinc-400">{extrinsics.total.toLocaleString()} total</span>
         )}
       </div>
 
-      {/* Filter toggle */}
-      <div className="flex items-center gap-2 text-sm">
-        <a
-          href="/extrinsics"
-          className={`px-3 py-1 rounded-full transition-colors ${
-            !signedOnly
-              ? "bg-accent/20 text-accent"
-              : "bg-zinc-800 text-zinc-400 hover:text-zinc-200"
-          }`}
-        >
-          All
-        </a>
-        <a
-          href="/extrinsics?signed=true"
-          className={`px-3 py-1 rounded-full transition-colors ${
-            signedOnly
-              ? "bg-accent/20 text-accent"
-              : "bg-zinc-800 text-zinc-400 hover:text-zinc-200"
-          }`}
-        >
-          Signed Only
-        </a>
-      </div>
+      {/* Dynamic filter dropdowns */}
+      <ExtrinsicFilter modules={moduleList} />
 
       {error && (
         <div className="rounded-lg border border-yellow-800/50 bg-yellow-950/30 p-3 text-sm text-yellow-300">
@@ -84,15 +75,19 @@ export default async function ExtrinsicsPage({
             currentPage={page}
             totalPages={totalPages}
             basePath="/extrinsics"
-            extraParams={signedOnly ? { signed: "true" } : undefined}
+            extraParams={{
+              ...(signedOnly ? { signed: "true" } : {}),
+              ...(module ? { module } : {}),
+              ...(call ? { call } : {}),
+            }}
           />
         </>
       )}
 
       {extrinsics && extrinsics.data.length === 0 && (
         <div className="text-center py-12 text-zinc-500">
-          {signedOnly
-            ? "No signed extrinsics found yet."
+          {signedOnly || module
+            ? "No extrinsics match the current filters."
             : "No extrinsics found yet. The indexer is still syncing."}
         </div>
       )}

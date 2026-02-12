@@ -29,6 +29,7 @@ import {
   getDigestLogs,
   query,
   getEventModules,
+  getExtrinsicModules,
   dbMetrics,
   getBrokenExtrinsicBlocks,
   truncateOversizedArgs,
@@ -430,7 +431,10 @@ export function createApiServer(
       const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 25, 1), 100);
       const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
       const signedOnly = req.query.signed === "true";
-      const result = await getExtrinsicsList(limit, offset, signedOnly);
+      const module = (req.query.module as string) || undefined;
+      const callParam = (req.query.call as string) || undefined;
+      const calls = callParam ? callParam.split(",").filter(Boolean) : undefined;
+      const result = await getExtrinsicsList(limit, offset, signedOnly, module, calls);
       const page = Math.floor(offset / limit) + 1;
       res.json({
         data: result.data,
@@ -441,6 +445,26 @@ export function createApiServer(
       });
     } catch {
       res.status(500).json({ error: "Failed to fetch extrinsics" });
+    }
+  });
+
+  /**
+   * @openapi
+   * /api/extrinsics/modules:
+   *   get:
+   *     tags: [Extrinsics]
+   *     summary: List distinct extrinsic modules and their calls
+   *     description: Returns all unique module names and their call types found in indexed data. Useful for building dynamic filter UIs.
+   *     responses:
+   *       200:
+   *         description: List of modules with their call types
+   */
+  app.get("/api/extrinsics/modules", async (_req, res) => {
+    try {
+      const modules = await getExtrinsicModules();
+      res.json({ modules });
+    } catch {
+      res.status(500).json({ error: "Failed to fetch extrinsic modules" });
     }
   });
 

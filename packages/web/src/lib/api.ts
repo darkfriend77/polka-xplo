@@ -100,8 +100,13 @@ export async function getExtrinsics(
   limit = 25,
   offset = 0,
   signedOnly = false,
+  module?: string,
+  call?: string,
 ): Promise<ExtrinsicsResponse> {
-  const params = `limit=${limit}&offset=${offset}${signedOnly ? "&signed=true" : ""}`;
+  let params = `limit=${limit}&offset=${offset}`;
+  if (signedOnly) params += "&signed=true";
+  if (module) params += `&module=${encodeURIComponent(module)}`;
+  if (call) params += `&call=${encodeURIComponent(call)}`;
   return fetchJson(`/api/extrinsics?${params}`);
 }
 
@@ -144,8 +149,17 @@ export interface EventModuleInfo {
   events: string[];
 }
 
+export interface ExtrinsicModuleInfo {
+  module: string;
+  calls: string[];
+}
+
 export async function getEventModules(): Promise<{ modules: EventModuleInfo[] }> {
   return fetchJson("/api/events/modules");
+}
+
+export async function getExtrinsicModules(): Promise<{ modules: ExtrinsicModuleInfo[] }> {
+  return fetchJson("/api/extrinsics/modules");
 }
 
 // ---- Accounts ----

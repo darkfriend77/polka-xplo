@@ -153,16 +153,30 @@ export async function getExtrinsicsList(
   limit = 25,
   offset = 0,
   signedOnly = false,
+  module?: string,
+  calls?: string[],
 ): Promise<{ data: Extrinsic[]; total: number }> {
-  const whereData = signedOnly ? `WHERE signer IS NOT NULL` : ``;
-  const whereCount = signedOnly ? `WHERE signer IS NOT NULL` : ``;
+  const conditions: string[] = [];
+  const params: unknown[] = [];
+  let idx = 1;
+
+  if (signedOnly) conditions.push(`signer IS NOT NULL`);
+  if (module) { conditions.push(`module = $${idx++}`); params.push(module); }
+  if (calls && calls.length > 0) {
+    const placeholders = calls.map(() => `$${idx++}`);
+    conditions.push(`call IN (${placeholders.join(",")})`);
+    params.push(...calls);
+  }
+
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : ``;
+
   const [dataRes, countRes] = await Promise.all([
     query<Record<string, unknown>>(
       `SELECT id, block_height, tx_hash, index, signer, module, call, args, success, fee, tip
-       FROM extrinsics ${whereData} ORDER BY block_height DESC, index DESC LIMIT $1 OFFSET $2`,
-      [limit, offset],
+       FROM extrinsics ${where} ORDER BY block_height DESC, index DESC LIMIT $${idx++} OFFSET $${idx++}`,
+      [...params, limit, offset],
     ),
-    query<{ count: string }>(`SELECT COUNT(*) AS count FROM extrinsics ${whereCount}`),
+    query<{ count: string }>(`SELECT COUNT(*) AS count FROM extrinsics ${where}`, params),
   ]);
   return {
     data: dataRes.rows.map(mapExtrinsic),
@@ -296,6 +310,20 @@ export async function getEventsList(
     data: dataRes.rows.map(mapEvent),
     total: parseInt(countRes.rows[0].count, 10),
   };
+}
+
+/** Get distinct modules and their calls from the extrinsics table */
+export async function getExtrinsicModules(): Promise<{ module: string; calls: string[] }[]> {
+  const result = await query<{ module: string; call: string }>(
+    `SELECT DISTINCT module, call FROM extrinsics ORDER BY module, call`,
+  );
+  const map = new Map<string, string[]>();
+  for (const row of result.rows) {
+    const existing = map.get(row.module) ?? [];
+    existing.push(row.call);
+    map.set(row.module, existing);
+  }
+  return Array.from(map.entries()).map(([module, calls]) => ({ module, calls }));
 }
 
 /** Get distinct modules and their event types from the events table */
