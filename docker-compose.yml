@@ -15,7 +15,7 @@ services:
     # Tuned for 8 GB RAM host with large dataset
     command:
       - "postgres"
-      - "-c" 
+      - "-c"
       - "shared_buffers=2GB"
       - "-c"
       - "effective_cache_size=6GB"
