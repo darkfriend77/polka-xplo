@@ -75,7 +75,7 @@ export const DEFAULT_CHAINS: ChainConfig[] = [
       twitter: "https://x.com/AjunaNetwork",
       discord: "https://discord.gg/cE72GYcFgY",
       telegram: "https://t.me/AjunaNetwork",
-      github: "https://github.com/AjunaNetwork",
+      github: "https://github.com/ajuna-network",
     },
     isParachain: true,
     relayChain: "polkadot",
