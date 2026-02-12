@@ -130,6 +130,10 @@ async function processBlockInner(
     // Invoke onBlock hooks
     await registry.invokeBlockHandlers(blockCtx, block);
 
+    // Collect all account addresses to upsert at the end in sorted order,
+    // which prevents deadlocks when concurrent workers touch the same accounts.
+    const accountAddrs = new Set<string>();
+
     // 2. Process extrinsics
     const extrinsicMap = new Map<number, string>(); // index -> id
 
@@ -153,9 +157,9 @@ async function processBlockInner(
 
       await insertExtrinsic(extrinsic, client);
 
-      // Track signer account
+      // Collect signer account
       if (rawExt.signer) {
-        await upsertAccount(rawExt.signer, rawExt.signer, raw.number, client);
+        accountAddrs.add(rawExt.signer);
       }
 
       // Invoke extension extrinsic handlers
@@ -186,14 +190,22 @@ async function processBlockInner(
 
       await insertEvent(event, client);
 
-      // Track accounts referenced in events
+      // Collect accounts referenced in events
       const addrs = extractAccountsFromEvent(rawEvt);
       for (const addr of addrs) {
-        await upsertAccount(addr, addr, raw.number, client);
+        accountAddrs.add(addr);
       }
 
       // Invoke extension event handlers
       await registry.invokeEventHandlers(blockCtx, event);
+    }
+
+    // 4. Upsert accounts in sorted order to prevent deadlocks
+    //    Sorting ensures all concurrent transactions acquire locks in the
+    //    same order, which is the standard deadlock prevention technique.
+    const sortedAddrs = [...accountAddrs].sort();
+    for (const addr of sortedAddrs) {
+      await upsertAccount(addr, addr, raw.number, client);
     }
   });
 }
