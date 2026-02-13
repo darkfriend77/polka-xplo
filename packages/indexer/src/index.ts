@@ -50,7 +50,10 @@ async function main(): Promise<void> {
 
   // 5. Start the API server early so /health is always reachable
   const port = parseInt(process.env.API_PORT ?? "3001", 10);
-  const apiServer = createApiServer(registry, chainId, rpcPool);
+  // Pipeline holder — the API server reads from this mutable object
+  // so /consistency-check/repair works once the pipeline starts.
+  const pipelineHolder: { current: IngestionPipeline | null } = { current: null };
+  const apiServer = createApiServer(registry, chainId, rpcPool, pipelineHolder);
   apiServer.listen(port, () => {
     console.log(`[Main] API server listening on port ${port}`);
   });
@@ -67,6 +70,7 @@ async function main(): Promise<void> {
     console.log(`[Main] Connected to ${primaryUrl} (${rpcUrls.length} endpoint(s) in pool)`);
 
     pipeline = new IngestionPipeline(papiClient, registry, rpcPool);
+    pipelineHolder.current = pipeline;
     await pipeline.start();
   } catch (err) {
     console.error("[Main] Pipeline failed to start (API server still running):", err);

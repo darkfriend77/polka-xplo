@@ -4,6 +4,7 @@ import swaggerJsdoc from "swagger-jsdoc";
 import swaggerUi from "swagger-ui-express";
 import type { PluginRegistry } from "../plugins/registry.js";
 import type { RpcPool } from "../rpc-pool.js";
+import type { IngestionPipeline } from "../ingestion/pipeline.js";
 import {
   getLatestBlocks,
   getBlockByHeight,
@@ -34,6 +35,7 @@ import {
   getBrokenExtrinsicBlocks,
   truncateOversizedArgs,
   getRegisteredAssets,
+  findMissingBlocks,
 } from "@polka-xplo/db";
 import { detectSearchType, normalizeAddress } from "@polka-xplo/shared";
 import { metrics } from "../metrics.js";
@@ -48,6 +50,7 @@ export function createApiServer(
   registry: PluginRegistry,
   chainId: string,
   rpcPool?: RpcPool,
+  pipelineHolder?: { current: IngestionPipeline | null },
 ): express.Express {
   const app = express();
 
@@ -1215,6 +1218,118 @@ export function createApiServer(
   // ============================================================
   // Repair Endpoint — re-decode broken extrinsics
   // ============================================================
+
+  // ============================================================
+  // Consistency Check — detect and repair missing blocks (gaps)
+  // ============================================================
+
+  /**
+   * @openapi
+   * /api/consistency-check:
+   *   get:
+   *     tags: [System]
+   *     summary: Detect missing blocks (gaps) in the indexed data
+   *     description: Scans the blocks table for gaps in block heights. Returns missing block numbers.
+   *     parameters:
+   *       - in: query
+   *         name: start
+   *         schema:
+   *           type: integer
+   *         description: Start height (defaults to lowest indexed block)
+   *       - in: query
+   *         name: end
+   *         schema:
+   *           type: integer
+   *         description: End height (defaults to highest indexed block)
+   *       - in: query
+   *         name: limit
+   *         schema:
+   *           type: integer
+   *           default: 1000
+   *         description: Maximum number of missing heights to return
+   *     responses:
+   *       200:
+   *         description: Gap analysis results
+   */
+  app.get("/api/consistency-check", async (req, res) => {
+    try {
+      const start = req.query.start ? parseInt(String(req.query.start), 10) : undefined;
+      const end = req.query.end ? parseInt(String(req.query.end), 10) : undefined;
+      const limit = Math.min(parseInt(String(req.query.limit ?? "1000"), 10) || 1000, 10000);
+
+      const result = await findMissingBlocks(start, end, limit);
+      res.json({
+        ...result,
+        healthy: result.total === 0,
+        message:
+          result.total === 0
+            ? "No gaps detected — all blocks are indexed."
+            : `Found ${result.total} missing block(s) in range ${result.rangeStart}..${result.rangeEnd}.`,
+      });
+    } catch (err) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
+
+  /**
+   * @openapi
+   * /api/consistency-check/repair:
+   *   post:
+   *     tags: [System]
+   *     summary: Repair missing blocks by re-fetching them from the chain
+   *     description: Fetches and processes missing blocks to fill gaps. Requires the ingestion pipeline to be running.
+   *     parameters:
+   *       - in: query
+   *         name: start
+   *         schema:
+   *           type: integer
+   *       - in: query
+   *         name: end
+   *         schema:
+   *           type: integer
+   *       - in: query
+   *         name: limit
+   *         schema:
+   *           type: integer
+   *           default: 500
+   *     responses:
+   *       200:
+   *         description: Repair results
+   *       503:
+   *         description: Pipeline not available
+   */
+  app.post("/api/consistency-check/repair", async (req, res) => {
+    const pipeline = pipelineHolder?.current ?? null;
+    if (!pipeline) {
+      res.status(503).json({ error: "Ingestion pipeline is not running. Cannot repair gaps." });
+      return;
+    }
+
+    try {
+      const start = req.query.start ? parseInt(String(req.query.start), 10) : undefined;
+      const end = req.query.end ? parseInt(String(req.query.end), 10) : undefined;
+      const limit = Math.min(parseInt(String(req.query.limit ?? "500"), 10) || 500, 5000);
+
+      const gaps = await findMissingBlocks(start, end, limit);
+
+      if (gaps.total === 0) {
+        res.json({ message: "No gaps found — nothing to repair.", repaired: 0, failed: [] });
+        return;
+      }
+
+      console.log(`[API] Repairing ${gaps.missingHeights.length} missing blocks...`);
+      const result = await pipeline.repairGaps(gaps.missingHeights);
+
+      res.json({
+        message: `Repair complete: ${result.repaired} blocks repaired, ${result.failed.length} failed.`,
+        totalGaps: gaps.total,
+        attempted: gaps.missingHeights.length,
+        ...result,
+      });
+    } catch (err) {
+      res.status(500).json({ error: String(err) });
+    }
+  });
 
   /**
    * @openapi

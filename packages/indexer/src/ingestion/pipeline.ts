@@ -4,7 +4,7 @@ import type { PluginRegistry } from "../plugins/registry.js";
 import { RpcPool } from "../rpc-pool.js";
 import { processBlock, type RawBlockData } from "./block-processor.js";
 import { ExtrinsicDecoder } from "./extrinsic-decoder.js";
-import { getLastFinalizedHeight, upsertIndexerState, finalizeBlock } from "@polka-xplo/db";
+import { getLastFinalizedHeight, upsertIndexerState, finalizeBlock, findMissingBlocks } from "@polka-xplo/db";
 import type { BlockStatus, DigestLog } from "@polka-xplo/shared";
 import { metrics } from "../metrics.js";
 import { hexToBytes, bytesToHex } from "../hex-utils.js";
@@ -137,6 +137,35 @@ export class IngestionPipeline {
     await upsertIndexerState(this.chainId, chainTip, chainTip, "live");
     metrics.setState("live");
     console.log(`[Pipeline:${this.chainId}] Backfill complete.`);
+
+    // Phase 2: Verify and repair any gaps created by failed block fetches
+    await this.verifyAndRepairGaps();
+  }
+
+  /**
+   * Scan for gaps in the indexed block range and attempt to repair them.
+   * Called automatically after backfill completes.
+   */
+  private async verifyAndRepairGaps(): Promise<void> {
+    const { missingHeights, total } = await findMissingBlocks(undefined, undefined, 500);
+
+    if (total === 0) {
+      console.log(`[Pipeline:${this.chainId}] Consistency check passed — no gaps found.`);
+      return;
+    }
+
+    console.warn(
+      `[Pipeline:${this.chainId}] Consistency check found ${total} missing block(s). Repairing...`,
+    );
+    const { repaired, failed } = await this.repairGaps(missingHeights);
+
+    if (failed.length > 0) {
+      console.error(
+        `[Pipeline:${this.chainId}] ${failed.length} blocks could not be repaired: ${failed.slice(0, 20).join(", ")}${failed.length > 20 ? "..." : ""}`,
+      );
+    } else {
+      console.log(`[Pipeline:${this.chainId}] All ${repaired} gaps repaired successfully.`);
+    }
   }
 
   /** Subscribe to the finalized block stream (with auto-reconnect) */
@@ -214,22 +243,92 @@ export class IngestionPipeline {
   /**
    * Fetch a block by its hash (from subscription) and run it through the processor.
    * If hash is null (backfill by height), we look it up from the best/finalized blocks.
+   * Retries up to MAX_BLOCK_RETRIES times before giving up.
    */
   private async fetchAndProcessByHash(
     blockHash: string | null,
     height: number,
     status: BlockStatus,
   ): Promise<void> {
-    const rawBlock = await this.fetchBlock(blockHash, height);
-    if (!rawBlock) {
-      console.warn(`[Pipeline:${this.chainId}] Could not fetch block #${height}`);
-      return;
-    }
+    const MAX_BLOCK_RETRIES = 3;
 
-    const blockStart = performance.now();
-    await processBlock(rawBlock, status, this.registry);
-    const blockTimeMs = performance.now() - blockStart;
-    metrics.recordBlock(height, blockTimeMs);
+    for (let attempt = 1; attempt <= MAX_BLOCK_RETRIES; attempt++) {
+      try {
+        const rawBlock = await this.fetchBlock(blockHash, height);
+        if (!rawBlock) {
+          if (attempt < MAX_BLOCK_RETRIES) {
+            const delay = 200 * attempt + Math.random() * 300;
+            console.warn(
+              `[Pipeline:${this.chainId}] Could not fetch block #${height}, retry ${attempt}/${MAX_BLOCK_RETRIES} in ${delay.toFixed(0)}ms`,
+            );
+            await new Promise((r) => setTimeout(r, delay));
+            continue;
+          }
+          console.error(
+            `[Pipeline:${this.chainId}] SKIPPED block #${height} after ${MAX_BLOCK_RETRIES} attempts — gap created`,
+          );
+          return;
+        }
+
+        const blockStart = performance.now();
+        await processBlock(rawBlock, status, this.registry);
+        const blockTimeMs = performance.now() - blockStart;
+        metrics.recordBlock(height, blockTimeMs);
+        return; // success
+      } catch (err) {
+        if (attempt < MAX_BLOCK_RETRIES) {
+          const delay = 200 * attempt + Math.random() * 300;
+          console.warn(
+            `[Pipeline:${this.chainId}] Error processing block #${height}, retry ${attempt}/${MAX_BLOCK_RETRIES}: ${err}`,
+          );
+          await new Promise((r) => setTimeout(r, delay));
+          continue;
+        }
+        console.error(
+          `[Pipeline:${this.chainId}] SKIPPED block #${height} after ${MAX_BLOCK_RETRIES} attempts:`,
+          err,
+        );
+      }
+    }
+  }
+
+  /**
+   * Repair missing blocks (gaps) in the indexed data.
+   * Fetches and processes each missing block height.
+   * Returns the count of successfully repaired blocks.
+   */
+  async repairGaps(missingHeights: number[]): Promise<{ repaired: number; failed: number[] }> {
+    let repaired = 0;
+    const failed: number[] = [];
+
+    const REPAIR_CONCURRENCY = 5;
+    const queue = [...missingHeights];
+    const localFailed: number[] = [];
+
+    const workers = Array.from(
+      { length: Math.min(REPAIR_CONCURRENCY, queue.length) },
+      async () => {
+        while (true) {
+          const height = queue.shift();
+          if (height === undefined) break;
+          try {
+            await this.fetchAndProcessByHash(null, height, "finalized");
+            repaired++;
+            console.log(`[Pipeline:${this.chainId}] Repaired gap: block #${height}`);
+          } catch (err) {
+            console.error(`[Pipeline:${this.chainId}] Failed to repair block #${height}:`, err);
+            localFailed.push(height);
+          }
+        }
+      },
+    );
+    await Promise.all(workers);
+    failed.push(...localFailed.sort((a, b) => a - b));
+
+    console.log(
+      `[Pipeline:${this.chainId}] Gap repair complete: ${repaired} repaired, ${failed.length} still missing`,
+    );
+    return { repaired, failed };
   }
 
   /**

@@ -960,6 +960,53 @@ export interface RegisteredAsset {
 }
 
 /**
+ * Find missing block heights (gaps) in the blocks table.
+ * Uses a generate_series to detect holes between minHeight and maxHeight.
+ * Returns up to `limit` missing heights for pagination.
+ */
+export async function findMissingBlocks(
+  startHeight?: number,
+  endHeight?: number,
+  limit = 1000,
+): Promise<{ missingHeights: number[]; total: number; rangeStart: number; rangeEnd: number }> {
+  // Determine actual range from the DB if not specified
+  const rangeResult = await query<{ min_h: string | null; max_h: string | null }>(
+    `SELECT MIN(height) AS min_h, MAX(height) AS max_h FROM blocks WHERE status = 'finalized'`,
+  );
+  const dbMin = rangeResult.rows[0]?.min_h ? parseInt(String(rangeResult.rows[0].min_h), 10) : 0;
+  const dbMax = rangeResult.rows[0]?.max_h ? parseInt(String(rangeResult.rows[0].max_h), 10) : 0;
+
+  const rangeStart = startHeight ?? dbMin;
+  const rangeEnd = endHeight ?? dbMax;
+
+  if (rangeEnd <= rangeStart) {
+    return { missingHeights: [], total: 0, rangeStart, rangeEnd };
+  }
+
+  // Count total gaps first
+  const countResult = await query<{ cnt: string }>(
+    `SELECT COUNT(*)::TEXT AS cnt
+     FROM generate_series($1::BIGINT, $2::BIGINT) AS s(h)
+     WHERE NOT EXISTS (SELECT 1 FROM blocks WHERE height = s.h)`,
+    [rangeStart, rangeEnd],
+  );
+  const total = parseInt(countResult.rows[0]?.cnt ?? "0", 10);
+
+  // Fetch the actual missing heights (limited)
+  const result = await query<{ h: string }>(
+    `SELECT s.h::TEXT
+     FROM generate_series($1::BIGINT, $2::BIGINT) AS s(h)
+     WHERE NOT EXISTS (SELECT 1 FROM blocks WHERE height = s.h)
+     ORDER BY s.h ASC
+     LIMIT $3`,
+    [rangeStart, rangeEnd, limit],
+  );
+
+  const missingHeights = result.rows.map((r) => parseInt(r.h, 10));
+  return { missingHeights, total, rangeStart, rangeEnd };
+}
+
+/**
  * Get all registered assets from the ext-assets table.
  * Returns empty array if the extension isn't installed (table doesn't exist).
  */
