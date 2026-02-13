@@ -135,6 +135,16 @@ export function createApiServer(
         license: { name: "AGPL-3.0", url: "https://www.gnu.org/licenses/agpl-3.0.html" },
       },
       servers: [{ url: "/", description: "Current host" }],
+      components: {
+        securitySchemes: {
+          AdminApiKey: {
+            type: "apiKey",
+            in: "header",
+            name: "X-Admin-Key",
+            description: "Admin API key for destructive/maintenance endpoints",
+          },
+        },
+      },
     },
     apis: [fileURLToPath(import.meta.url)], // scan this file for JSDoc comments
   });
@@ -1259,6 +1269,8 @@ export function createApiServer(
    * /api/admin/extensions/{extensionId}/backfill:
    *   post:
    *     tags: [Admin]
+   *     security:
+   *       - AdminApiKey: []
    *     summary: Trigger historical event backfill for an extension
    *     description: Re-reads matching events from the events table and replays them through the extension handlers. Useful after deploying a new extension on an already-indexed chain.
    *     parameters:
@@ -1295,6 +1307,8 @@ export function createApiServer(
    * /api/admin/consistency-check:
    *   get:
    *     tags: [Admin]
+   *     security:
+   *       - AdminApiKey: []
    *     summary: Detect missing blocks (gaps) in the indexed data
    *     description: Scans the blocks table for gaps in block heights. Returns missing block numbers.
    *     parameters:
@@ -1343,6 +1357,8 @@ export function createApiServer(
    * /api/admin/consistency-check/repair:
    *   post:
    *     tags: [Admin]
+   *     security:
+   *       - AdminApiKey: []
    *     summary: Repair missing blocks by re-fetching them from the chain
    *     description: Fetches and processes missing blocks to fill gaps. Requires the ingestion pipeline to be running.
    *     parameters:
@@ -1403,6 +1419,8 @@ export function createApiServer(
    * /api/admin/repair/extrinsics:
    *   post:
    *     tags: [Admin]
+   *     security:
+   *       - AdminApiKey: []
    *     summary: Repair mis-decoded extrinsics
    *     description: |
    *       Finds extrinsics with placeholder module/call names (e.g. "Pallet(217)", "call(56)")
@@ -1487,6 +1505,8 @@ export function createApiServer(
    * /api/admin/maintenance/truncate-args:
    *   post:
    *     tags: [Admin]
+   *     security:
+   *       - AdminApiKey: []
    *     summary: Truncate oversized extrinsic args
    *     description: |
    *       Replaces extrinsic args larger than 4 KB with a compact marker
@@ -1538,6 +1558,8 @@ export function createApiServer(
    * /api/admin/maintenance/vacuum:
    *   post:
    *     tags: [Admin]
+   *     security:
+   *       - AdminApiKey: []
    *     summary: Run VACUUM FULL ANALYZE on main tables
    *     description: |
    *       Reclaims disk space after large truncation operations
