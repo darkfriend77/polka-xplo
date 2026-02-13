@@ -119,6 +119,10 @@ export function createApiServer(
   // Apply rate limiting to all API routes
   app.use("/api/", rateLimit);
 
+  // Protect ALL admin routes at the prefix level — any new route under
+  // /api/admin/ is automatically gated, even if per-route middleware is forgotten.
+  app.use("/api/admin/", requireAdmin);
+
   // ---- Swagger / OpenAPI ----
   const swaggerSpec = swaggerJsdoc({
     definition: {
@@ -1252,9 +1256,9 @@ export function createApiServer(
 
   /**
    * @openapi
-   * /api/extensions/{extensionId}/backfill:
+   * /api/admin/extensions/{extensionId}/backfill:
    *   post:
-   *     tags: [Extensions]
+   *     tags: [Admin]
    *     summary: Trigger historical event backfill for an extension
    *     description: Re-reads matching events from the events table and replays them through the extension handlers. Useful after deploying a new extension on an already-indexed chain.
    *     parameters:
@@ -1269,7 +1273,7 @@ export function createApiServer(
    *       404:
    *         description: Extension not found
    */
-  app.post("/api/extensions/:extensionId/backfill", requireAdmin, async (req, res) => {
+  app.post("/api/admin/extensions/:extensionId/backfill", requireAdmin, async (req, res) => {
     try {
       const result = await registry.backfillById(req.params.extensionId);
       res.json(result);
@@ -1288,9 +1292,9 @@ export function createApiServer(
 
   /**
    * @openapi
-   * /api/consistency-check:
+   * /api/admin/consistency-check:
    *   get:
-   *     tags: [System]
+   *     tags: [Admin]
    *     summary: Detect missing blocks (gaps) in the indexed data
    *     description: Scans the blocks table for gaps in block heights. Returns missing block numbers.
    *     parameters:
@@ -1314,7 +1318,7 @@ export function createApiServer(
    *       200:
    *         description: Gap analysis results
    */
-  app.get("/api/consistency-check", requireAdmin, async (req, res) => {
+  app.get("/api/admin/consistency-check", requireAdmin, async (req, res) => {
     try {
       const start = req.query.start ? parseInt(String(req.query.start), 10) : undefined;
       const end = req.query.end ? parseInt(String(req.query.end), 10) : undefined;
@@ -1336,9 +1340,9 @@ export function createApiServer(
 
   /**
    * @openapi
-   * /api/consistency-check/repair:
+   * /api/admin/consistency-check/repair:
    *   post:
-   *     tags: [System]
+   *     tags: [Admin]
    *     summary: Repair missing blocks by re-fetching them from the chain
    *     description: Fetches and processes missing blocks to fill gaps. Requires the ingestion pipeline to be running.
    *     parameters:
@@ -1361,7 +1365,7 @@ export function createApiServer(
    *       503:
    *         description: Pipeline not available
    */
-  app.post("/api/consistency-check/repair", requireAdmin, async (req, res) => {
+  app.post("/api/admin/consistency-check/repair", requireAdmin, async (req, res) => {
     const pipeline = pipelineHolder?.current ?? null;
     if (!pipeline) {
       res.status(503).json({ error: "Ingestion pipeline is not running. Cannot repair gaps." });
@@ -1396,7 +1400,7 @@ export function createApiServer(
 
   /**
    * @openapi
-   * /api/repair/extrinsics:
+   * /api/admin/repair/extrinsics:
    *   post:
    *     tags: [Admin]
    *     summary: Repair mis-decoded extrinsics
@@ -1408,7 +1412,7 @@ export function createApiServer(
    *       200:
    *         description: Repair results
    */
-  app.post("/api/repair/extrinsics", requireAdmin, async (_req, res) => {
+  app.post("/api/admin/repair/extrinsics", requireAdmin, async (_req, res) => {
     if (!rpcPool) {
       res.status(503).json({ error: "RPC pool not available" });
       return;
@@ -1480,7 +1484,7 @@ export function createApiServer(
 
   /**
    * @openapi
-   * /api/maintenance/truncate-args:
+   * /api/admin/maintenance/truncate-args:
    *   post:
    *     tags: [Admin]
    *     summary: Truncate oversized extrinsic args
@@ -1492,7 +1496,7 @@ export function createApiServer(
    *       200:
    *         description: Truncation results
    */
-  app.post("/api/maintenance/truncate-args", requireAdmin, async (_req, res) => {
+  app.post("/api/admin/maintenance/truncate-args", requireAdmin, async (_req, res) => {
     try {
       let totalUpdated = 0;
       let batch: { updated: number };
@@ -1531,7 +1535,7 @@ export function createApiServer(
 
   /**
    * @openapi
-   * /api/maintenance/vacuum:
+   * /api/admin/maintenance/vacuum:
    *   post:
    *     tags: [Admin]
    *     summary: Run VACUUM FULL ANALYZE on main tables
@@ -1544,7 +1548,7 @@ export function createApiServer(
    *       200:
    *         description: Vacuum results
    */
-  app.post("/api/maintenance/vacuum", requireAdmin, async (_req, res) => {
+  app.post("/api/admin/maintenance/vacuum", requireAdmin, async (_req, res) => {
     try {
       console.log("[Maintenance] Starting VACUUM FULL ANALYZE on extrinsics...");
       const start = Date.now();
