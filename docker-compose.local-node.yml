@@ -25,14 +25,13 @@
 #     but collators often remap it (e.g. 9733 for Ajuna).
 #     Verify with: curl -s -d '{"jsonrpc":"2.0","id":1,"method":"system_health","params":[]}' \
 #                       -H "Content-Type: application/json" http://127.0.0.1:<port>
-#   - If the node binds to 127.0.0.1, you need either:
-#       a) network_mode: host (used below), or
-#       b) --rpc-external on the Substrate node, or
-#       c) extra_hosts: ["host.docker.internal:host-gateway"]
+#   - The node's RPC port must be mapped to the host (e.g. -p 9733:9733)
+#     so containers can reach it via host.docker.internal.
 #
-# The default below uses host networking so the container sees
-# localhost:9944 as the Substrate node. If you prefer bridge
-# networking, comment out network_mode and use extra_hosts instead.
+# Networking:
+#   Uses extra_hosts to map "host.docker.internal" to the Docker host
+#   gateway. This keeps Docker DNS working between containers (unlike
+#   network_mode: host) while still reaching the local Substrate node.
 #
 # Resource limits:
 #   When sharing a server with a collator/validator, the node MUST have
@@ -43,12 +42,20 @@
 #   Adjust the limits below to match your server spec. The defaults
 #   assume a 4-8 core / 16-32 GB server where ~50% of resources are
 #   reserved for the collator.
+#
+# Initial backfill warning:
+#   During first sync (millions of blocks), heavy RPC traffic to the
+#   local node can destabilise block production. It is recommended to
+#   comment out LOCAL_NODE_URL (or remove it from .env) during the
+#   initial backfill and use public RPCs only. Once synced, add it
+#   back — live mode (~1 block/12s) puts negligible load on the node.
 
 services:
   explorer-indexer:
-    # Host networking — container shares the host's network stack,
-    # so ws://127.0.0.1:9944 reaches the co-located Substrate node.
-    network_mode: host
+    # extra_hosts lets the container reach the host machine (and the
+    # co-located Substrate node) via "host.docker.internal".
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     # --- Resource limits (protect the collator) ---
     cpus: ${INDEXER_CPUS:-2.0}
     mem_limit: ${INDEXER_MEM_LIMIT:-4g}
@@ -56,12 +63,9 @@ services:
     cpu_shares: 256          # Lower than default (1024) — collator gets priority
     oom_score_adj: 500       # Kernel kills indexer before collator under OOM
     environment:
-      # Local node endpoint (prepended to the RPC pool as primary)
-      # Default is 9944; override via .env file (e.g. LOCAL_NODE_URL=ws://127.0.0.1:9733)
-      LOCAL_NODE_URL: ${LOCAL_NODE_URL:-ws://127.0.0.1:9944}
-      # Database and Redis also need host addresses when using host networking
-      DATABASE_URL: ${DATABASE_URL:-postgresql://polkaxplo:polkaxplo@127.0.0.1:5432/polkaxplo}
-      REDIS_URL: ${REDIS_URL:-redis://127.0.0.1:6379}
+      # Local node endpoint — uses host.docker.internal to reach the host.
+      # Set to empty string or omit from .env to disable during backfill.
+      LOCAL_NODE_URL: ${LOCAL_NODE_URL:-}
       # Lower concurrency to reduce CPU/IO pressure on the collator
       BACKFILL_CONCURRENCY: ${BACKFILL_CONCURRENCY:-4}
 
