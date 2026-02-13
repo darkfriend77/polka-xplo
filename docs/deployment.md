@@ -307,14 +307,14 @@ or `?admin_key=` query parameter.
 
 #### 2. Nginx Layer — Block Admin Routes
 
-Add these location blocks to your nginx site **before** the generic `/api/` proxy:
+All admin endpoints live under `/api/admin/`, so a single nginx rule blocks them all.
+Any new admin endpoint added in the future is automatically covered.
+
+Add this location block to your nginx site **before** the generic `/api/` proxy:
 
 ```nginx
-# Block admin/destructive API endpoints from public access
-location ~ ^/api/(maintenance|repair|consistency-check) {
-    return 403;
-}
-location ~ ^/api/extensions/.+/backfill {
+# Block the entire admin API from public access
+location /api/admin/ {
     return 403;
 }
 
