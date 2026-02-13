@@ -56,6 +56,69 @@ export function createApiServer(
 
   app.use(express.json());
 
+  // ---- Admin API Key Authentication ----
+  // Protects destructive/expensive endpoints. Set ADMIN_API_KEY in env.
+  // If unset, admin routes are disabled entirely in production.
+  const adminApiKey = process.env.ADMIN_API_KEY;
+  const isProduction = process.env.NODE_ENV === "production";
+
+  const requireAdmin: express.RequestHandler = (req, res, next) => {
+    if (!adminApiKey) {
+      if (isProduction) {
+        res.status(403).json({ error: "Admin endpoints are disabled. Set ADMIN_API_KEY to enable." });
+        return;
+      }
+      // In dev, allow without key
+      next();
+      return;
+    }
+    const provided =
+      req.headers["x-admin-key"] as string | undefined ??
+      req.query["admin_key"] as string | undefined;
+    if (provided !== adminApiKey) {
+      res.status(401).json({ error: "Unauthorized. Provide X-Admin-Key header or ?admin_key= param." });
+      return;
+    }
+    next();
+  };
+
+  // ---- Rate Limiting ----
+  // Simple in-memory rate limiter to prevent API abuse.
+  const rateLimitWindow = parseInt(process.env.RATE_LIMIT_WINDOW ?? "60000", 10); // 1 minute
+  const rateLimitMax = parseInt(process.env.RATE_LIMIT_MAX ?? "120", 10); // 120 req/min per IP
+  const rateLimitStore = new Map<string, { count: number; resetAt: number }>();
+
+  const rateLimit: express.RequestHandler = (req, res, next) => {
+    const ip = (req.headers["x-forwarded-for"] as string)?.split(",")[0]?.trim() ?? req.ip ?? "unknown";
+    const now = Date.now();
+    const entry = rateLimitStore.get(ip);
+
+    if (!entry || now > entry.resetAt) {
+      rateLimitStore.set(ip, { count: 1, resetAt: now + rateLimitWindow });
+      next();
+      return;
+    }
+
+    entry.count++;
+    if (entry.count > rateLimitMax) {
+      res.setHeader("Retry-After", String(Math.ceil((entry.resetAt - now) / 1000)));
+      res.status(429).json({ error: "Too many requests. Try again later." });
+      return;
+    }
+    next();
+  };
+
+  // Clean up stale rate limit entries every 5 minutes
+  setInterval(() => {
+    const now = Date.now();
+    for (const [ip, entry] of rateLimitStore) {
+      if (now > entry.resetAt) rateLimitStore.delete(ip);
+    }
+  }, 300_000);
+
+  // Apply rate limiting to all API routes
+  app.use("/api/", rateLimit);
+
   // ---- Swagger / OpenAPI ----
   const swaggerSpec = swaggerJsdoc({
     definition: {
@@ -1206,7 +1269,7 @@ export function createApiServer(
    *       404:
    *         description: Extension not found
    */
-  app.post("/api/extensions/:extensionId/backfill", async (req, res) => {
+  app.post("/api/extensions/:extensionId/backfill", requireAdmin, async (req, res) => {
     try {
       const result = await registry.backfillById(req.params.extensionId);
       res.json(result);
@@ -1251,7 +1314,7 @@ export function createApiServer(
    *       200:
    *         description: Gap analysis results
    */
-  app.get("/api/consistency-check", async (req, res) => {
+  app.get("/api/consistency-check", requireAdmin, async (req, res) => {
     try {
       const start = req.query.start ? parseInt(String(req.query.start), 10) : undefined;
       const end = req.query.end ? parseInt(String(req.query.end), 10) : undefined;
@@ -1298,7 +1361,7 @@ export function createApiServer(
    *       503:
    *         description: Pipeline not available
    */
-  app.post("/api/consistency-check/repair", async (req, res) => {
+  app.post("/api/consistency-check/repair", requireAdmin, async (req, res) => {
     const pipeline = pipelineHolder?.current ?? null;
     if (!pipeline) {
       res.status(503).json({ error: "Ingestion pipeline is not running. Cannot repair gaps." });
@@ -1345,7 +1408,7 @@ export function createApiServer(
    *       200:
    *         description: Repair results
    */
-  app.post("/api/repair/extrinsics", async (_req, res) => {
+  app.post("/api/repair/extrinsics", requireAdmin, async (_req, res) => {
     if (!rpcPool) {
       res.status(503).json({ error: "RPC pool not available" });
       return;
@@ -1429,7 +1492,7 @@ export function createApiServer(
    *       200:
    *         description: Truncation results
    */
-  app.post("/api/maintenance/truncate-args", async (_req, res) => {
+  app.post("/api/maintenance/truncate-args", requireAdmin, async (_req, res) => {
     try {
       let totalUpdated = 0;
       let batch: { updated: number };
@@ -1481,7 +1544,7 @@ export function createApiServer(
    *       200:
    *         description: Vacuum results
    */
-  app.post("/api/maintenance/vacuum", async (_req, res) => {
+  app.post("/api/maintenance/vacuum", requireAdmin, async (_req, res) => {
     try {
       console.log("[Maintenance] Starting VACUUM FULL ANALYZE on extrinsics...");
       const start = Date.now();

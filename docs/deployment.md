@@ -278,4 +278,83 @@ Each indexer stores data in the same Postgres database using `chain_id` scoping.
 
 ---
 
+## Security Hardening
+
+### Admin Endpoint Protection
+
+The indexer API exposes destructive/expensive admin endpoints (backfill, repair,
+maintenance, consistency-check). These are protected at two layers:
+
+#### 1. Application Layer — `ADMIN_API_KEY`
+
+Set `ADMIN_API_KEY` in your `.env` to require an API key for admin endpoints.
+Generate a strong key:
+
+```bash
+openssl rand -hex 32
+```
+
+Add to `.env`:
+
+```env
+ADMIN_API_KEY=<your-key>
+NODE_ENV=production
+```
+
+When `NODE_ENV=production` and no key is set, admin endpoints return **403** —
+they are completely disabled. Clients authenticate via the `X-Admin-Key` header
+or `?admin_key=` query parameter.
+
+#### 2. Nginx Layer — Block Admin Routes
+
+Add these location blocks to your nginx site **before** the generic `/api/` proxy:
+
+```nginx
+# Block admin/destructive API endpoints from public access
+location ~ ^/api/(maintenance|repair|consistency-check) {
+    return 403;
+}
+location ~ ^/api/extensions/.+/backfill {
+    return 403;
+}
+
+# Optional: restrict Swagger docs to localhost
+location /api-docs {
+    allow 127.0.0.1;
+    deny all;
+    proxy_pass http://127.0.0.1:3001;
+}
+```
+
+Reload nginx after editing:
+
+```bash
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+### Rate Limiting
+
+The API server includes a built-in per-IP rate limiter (default: 120
+requests/minute). Configure via environment variables:
+
+| Variable             | Default | Description                     |
+| -------------------- | ------- | ------------------------------- |
+| `RATE_LIMIT_WINDOW`  | `60000` | Window duration in milliseconds |
+| `RATE_LIMIT_MAX`     | `120`   | Max requests per window per IP  |
+
+Clients that exceed the limit receive **429 Too Many Requests** with a
+`Retry-After` header.
+
+For additional rate limiting at the nginx layer:
+
+```nginx
+# In the http {} block of nginx.conf
+limit_req_zone $binary_remote_addr zone=api:10m rate=30r/s;
+
+# In the server {} block, inside location /api/
+limit_req zone=api burst=50 nodelay;
+```
+
+---
+
 **Next:** [Configuration](configuration.md) · [Troubleshooting](troubleshooting.md)
