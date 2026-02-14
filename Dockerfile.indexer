@@ -12,6 +12,7 @@ COPY packages/web/package.json ./packages/web/
 COPY extensions/pallet-staking/package.json ./extensions/pallet-staking/
 COPY extensions/ext-governance/package.json ./extensions/ext-governance/
 COPY extensions/ext-assets/package.json ./extensions/ext-assets/
+COPY extensions/ext-xcm/package.json ./extensions/ext-xcm/
 
 # Install all dependencies (workspaces need the full graph)
 RUN npm install
@@ -32,6 +33,7 @@ RUN npx tsc -p packages/indexer/tsconfig.json
 RUN npx tsc -p extensions/pallet-staking/tsconfig.json
 RUN npx tsc -p extensions/ext-governance/tsconfig.json
 RUN npx tsc -p extensions/ext-assets/tsconfig.json
+RUN npx tsc -p extensions/ext-xcm/tsconfig.json
 
 # --- Production stage ---
 FROM node:20-slim AS runner

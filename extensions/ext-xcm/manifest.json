@@ -1,0 +1,28 @@
+{
+  "id": "ext-xcm",
+  "name": "XCM Messages",
+  "version": "1.1.0",
+  "description": "Tracks cross-chain XCM messages, transfers, and HRMP/DMP/UMP channels between parachains and the relay chain.",
+  "palletId": "XCM",
+  "supportedEvents": [
+    "PolkadotXcm.Sent",
+    "PolkadotXcm.Attempted",
+    "PolkadotXcm.FeesPaid",
+    "PolkadotXcm.AssetsTrapped",
+    "PolkadotXcm.SupportedVersionChanged",
+    "PolkadotXcm.VersionNotifyRequested",
+    "PolkadotXcm.VersionNotifyStarted",
+    "XcmpQueue.XcmpMessageSent",
+    "XTokens.TransferredAssets",
+    "MessageQueue.Processed",
+    "ParachainSystem.UpwardMessageSent",
+    "ParachainSystem.DownwardMessagesReceived",
+    "ParachainSystem.DownwardMessagesProcessed",
+    "DmpQueue.ExecutedDownward",
+    "CumulusXcm.ExecutedDownward",
+    "CumulusXcm.InvalidFormat",
+    "CumulusXcm.UnsupportedVersion"
+  ],
+  "supportedCalls": [],
+  "dependencies": []
+}

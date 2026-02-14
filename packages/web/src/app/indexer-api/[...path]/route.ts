@@ -19,11 +19,20 @@ async function handler(req: NextRequest, { params }: { params: Promise<{ path: s
   const target = `${backendUrl}/${proxyPath}${req.nextUrl.search}`;
 
   try {
+    const proxyHeaders: Record<string, string> = {
+      "content-type": req.headers.get("content-type") ?? "application/json",
+      "x-forwarded-prefix": "/indexer-api",
+    };
+    // Forward referer so downstream Swagger can detect access context
+    const referer = req.headers.get("referer");
+    if (referer) proxyHeaders["referer"] = referer;
+    // Forward admin auth header if present
+    const adminKey = req.headers.get("x-admin-key");
+    if (adminKey) proxyHeaders["x-admin-key"] = adminKey;
+
     const res = await fetch(target, {
       method: req.method,
-      headers: {
-        "content-type": req.headers.get("content-type") ?? "application/json",
-      },
+      headers: proxyHeaders,
       body: req.method !== "GET" && req.method !== "HEAD" ? await req.text() : undefined,
       // Follow redirects internally so we don't fight Next.js trailingSlash handling.
     });
