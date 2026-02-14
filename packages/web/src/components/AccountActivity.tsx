@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { ExtrinsicList } from "./ExtrinsicList";
 import { TransfersTable } from "./TransfersTable";
 import Link from "next/link";
-import type { ExtrinsicSummary, TransferSummary, AssetBalance, XcmTransfer } from "@/lib/api";
+import type { ExtrinsicSummary, TransferSummary, XcmTransfer } from "@/lib/api";
 import { theme } from "@/lib/theme";
 import { formatBalance, truncateHash } from "@/lib/format";
 
@@ -39,14 +39,29 @@ function formatXcmAmount(amount: string, symbol: string | null): string {
  * Tabbed activity panel for the account detail page.
  * Extrinsics are passed server-side; transfers/xcm are fetched client-side on demand.
  */
+/** Shape of a row from /api/accounts/:address/asset-transfers */
+interface AssetTransferRow {
+  id: number;
+  asset_id: number;
+  block_height: number;
+  extrinsic_id: string | null;
+  from_address: string;
+  to_address: string;
+  amount: string;
+  symbol: string | null;
+  asset_name: string | null;
+  decimals: number;
+  created_at: string;
+}
+
 export function AccountActivity({
   address,
+  hexAddress,
   extrinsics,
-  assetBalances,
 }: {
   address: string;
+  hexAddress?: string;
   extrinsics: ExtrinsicSummary[];
-  assetBalances?: AssetBalance[];
 }) {
   const [activeTab, setActiveTab] = useState<Tab>("extrinsics");
 
@@ -55,6 +70,12 @@ export function AccountActivity({
   const [transferTotal, setTransferTotal] = useState(0);
   const [transferPage, setTransferPage] = useState(1);
   const [transferLoading, setTransferLoading] = useState(false);
+
+  // Asset transfers state — lazy-loaded on first tab switch
+  const [assetTransfers, setAssetTransfers] = useState<AssetTransferRow[] | null>(null);
+  const [assetTotal, setAssetTotal] = useState(0);
+  const [assetPage, setAssetPage] = useState(1);
+  const [assetLoading, setAssetLoading] = useState(false);
 
   // XCM state — lazy-loaded on first tab switch
   const [xcmTransfers, setXcmTransfers] = useState<XcmTransfer[] | null>(null);
@@ -82,6 +103,29 @@ export function AccountActivity({
         setTransferTotal(0);
       } finally {
         setTransferLoading(false);
+      }
+    },
+    [address],
+  );
+
+  const fetchAssetTransfers = useCallback(
+    async (page: number) => {
+      setAssetLoading(true);
+      try {
+        const offset = (page - 1) * pageSize;
+        const res = await fetch(
+          `${API_BASE}/api/accounts/${encodeURIComponent(address)}/asset-transfers?limit=${pageSize}&offset=${offset}`,
+        );
+        if (!res.ok) throw new Error(`${res.status}`);
+        const json = await res.json();
+        setAssetTransfers(json.data ?? []);
+        setAssetTotal(json.total ?? 0);
+        setAssetPage(page);
+      } catch {
+        setAssetTransfers([]);
+        setAssetTotal(0);
+      } finally {
+        setAssetLoading(false);
       }
     },
     [address],
@@ -117,6 +161,13 @@ export function AccountActivity({
     }
   }, [activeTab, transfers, fetchTransfers]);
 
+  // Fetch asset transfers when tab is first activated
+  useEffect(() => {
+    if (activeTab === "assets" && assetTransfers === null) {
+      fetchAssetTransfers(1);
+    }
+  }, [activeTab, assetTransfers, fetchAssetTransfers]);
+
   // Fetch XCM transfers when tab is first activated
   useEffect(() => {
     if (activeTab === "xcm" && xcmTransfers === null) {
@@ -125,6 +176,7 @@ export function AccountActivity({
   }, [activeTab, xcmTransfers, fetchXcmTransfers]);
 
   const totalTransferPages = Math.ceil(transferTotal / pageSize);
+  const totalAssetPages = Math.ceil(assetTotal / pageSize);
   const totalXcmPages = Math.ceil(xcmTotal / pageSize);
 
   const tabClass = (tab: Tab) =>
@@ -153,9 +205,9 @@ export function AccountActivity({
         </button>
         <button className={tabClass("assets")} onClick={() => setActiveTab("assets")}>
           Assets
-          {assetBalances && assetBalances.length > 0 && (
+          {assetTotal > 0 && (
             <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full text-xs font-medium bg-zinc-700 text-zinc-200">
-              {assetBalances.length}
+              {assetTotal.toLocaleString()}
             </span>
           )}
         </button>
@@ -221,52 +273,97 @@ export function AccountActivity({
 
       {activeTab === "assets" && (
         <div className="card">
-          {assetBalances && assetBalances.length > 0 ? (
-            <div className="overflow-x-auto">
-              <table className="min-w-full text-sm">
-                <thead>
-                  <tr className="text-left text-zinc-500 border-b border-zinc-800">
-                    <th className="pb-2 pr-4">Asset</th>
-                    <th className="pb-2 pr-4">ID</th>
-                    <th className="pb-2 pr-4 text-right">Balance</th>
-                    <th className="pb-2">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-800/50">
-                  {assetBalances.map((asset) => (
-                    <tr key={asset.assetId} className="hover:bg-zinc-800/30">
-                      <td className="py-2.5 pr-4">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-zinc-200">{asset.symbol}</span>
-                          {asset.name && asset.name !== asset.symbol && (
-                            <span className="text-xs text-zinc-500">{asset.name}</span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="py-2.5 pr-4 font-mono text-xs text-zinc-400">
-                        <Link href={`/assets/${asset.assetId}`} className="text-accent hover:underline">
-                          #{asset.assetId}
-                        </Link>
-                      </td>
-                      <td className="py-2.5 pr-4 text-right font-mono text-sm tabular-nums text-zinc-200">
-                        {formatBalance(asset.balance, asset.decimals, asset.symbol)}
-                      </td>
-                      <td className="py-2.5">
-                        {asset.status === "Liquid" ? (
-                          <span className="text-xs text-green-400">Liquid</span>
-                        ) : (
-                          <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 font-medium">
-                            {asset.status}
-                          </span>
-                        )}
-                      </td>
+          {assetLoading && assetTransfers === null ? (
+            <p className="text-center py-8 text-zinc-500 text-sm">Loading asset transfers...</p>
+          ) : assetTransfers && assetTransfers.length > 0 ? (
+            <>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-zinc-500 border-b border-zinc-800">
+                      <th className="pb-2 pr-4">Direction</th>
+                      <th className="pb-2 pr-4">Asset</th>
+                      <th className="pb-2 pr-4">From</th>
+                      <th className="pb-2 pr-4">To</th>
+                      <th className="pb-2 pr-4 text-right">Amount</th>
+                      <th className="pb-2">Block</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-800/50">
+                    {assetTransfers.map((t) => {
+                      const myHex = (hexAddress ?? address).toLowerCase();
+                      const isSender = t.from_address.toLowerCase() === myHex;
+                      return (
+                        <tr key={t.id} className="hover:bg-zinc-800/30">
+                          <td className="py-2 pr-4">
+                            <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${
+                              isSender ? "text-orange-400 bg-orange-950/50" : "text-green-400 bg-green-950/50"
+                            }`}>
+                              {isSender ? "\u2191 OUT" : "\u2193 IN"}
+                            </span>
+                          </td>
+                          <td className="py-2 pr-4">
+                            <Link href={`/assets/${t.asset_id}`} className="text-accent hover:underline text-xs font-medium">
+                              {t.symbol ?? `#${t.asset_id}`}
+                            </Link>
+                          </td>
+                          <td className="py-2 pr-4 font-mono text-xs">
+                            {isSender ? (
+                              <span className="text-zinc-500">This account</span>
+                            ) : (
+                              <Link href={`/account/${t.from_address}`} className="text-accent hover:underline">
+                                {truncateHash(t.from_address)}
+                              </Link>
+                            )}
+                          </td>
+                          <td className="py-2 pr-4 font-mono text-xs">
+                            {!isSender ? (
+                              <span className="text-zinc-500">This account</span>
+                            ) : (
+                              <Link href={`/account/${t.to_address}`} className="text-accent hover:underline">
+                                {truncateHash(t.to_address)}
+                              </Link>
+                            )}
+                          </td>
+                          <td className="py-2 pr-4 text-right font-mono text-xs text-zinc-200">
+                            {formatBalance(t.amount, t.decimals, t.symbol ?? "")}
+                          </td>
+                          <td className="py-2">
+                            <Link href={`/block/${t.block_height}`} className="text-accent hover:underline font-mono text-xs">
+                              #{t.block_height.toLocaleString()}
+                            </Link>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              {/* Asset Transfers Pagination */}
+              {totalAssetPages > 1 && (
+                <div className="flex items-center justify-center gap-2 mt-4 pt-4 border-t border-zinc-800">
+                  <button
+                    onClick={() => fetchAssetTransfers(assetPage - 1)}
+                    disabled={assetPage <= 1 || assetLoading}
+                    className="px-3 py-1.5 text-xs rounded bg-zinc-800 text-zinc-300 hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    \u2190 Prev
+                  </button>
+                  <span className="text-xs text-zinc-400">
+                    Page {assetPage} of {totalAssetPages}
+                  </span>
+                  <button
+                    onClick={() => fetchAssetTransfers(assetPage + 1)}
+                    disabled={assetPage >= totalAssetPages || assetLoading}
+                    className="px-3 py-1.5 text-xs rounded bg-zinc-800 text-zinc-300 hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Next \u2192
+                  </button>
+                </div>
+              )}
+            </>
           ) : (
-            <p className="text-center py-8 text-zinc-500 text-sm">No asset holdings found.</p>
+            <p className="text-center py-8 text-zinc-500 text-sm">No asset transfers found for this account.</p>
           )}
         </div>
       )}
