@@ -44,22 +44,22 @@ interface CompactResult {
 }
 
 function readCompact(bytes: Uint8Array, offset: number): CompactResult {
-  const first = bytes[offset++];
+  const first = bytes[offset++]!;
   const mode = first & 0x03;
   if (mode === 0) return { value: first >> 2, offset };
   if (mode === 1) {
-    return { value: (first >> 2) | (bytes[offset] << 6), offset: offset + 1 };
+    return { value: (first >> 2) | (bytes[offset]! << 6), offset: offset + 1 };
   }
   if (mode === 2) {
     const val =
-      (first >> 2) | (bytes[offset] << 6) | (bytes[offset + 1] << 14) | (bytes[offset + 2] << 22);
+      (first >> 2) | (bytes[offset]! << 6) | (bytes[offset + 1]! << 14) | (bytes[offset + 2]! << 22);
     return { value: val, offset: offset + 3 };
   }
   // Big integer mode
   const len = (first >> 2) + 4;
   let val = 0;
   for (let i = 0; i < Math.min(len, 6); i++) {
-    val += bytes[offset + i] * 256 ** i;
+    val += bytes[offset + i]! * 256 ** i;
   }
   return { value: val, offset: offset + len };
 }
@@ -236,27 +236,27 @@ function readScaleValue(
         if (p === "u8") return { value: bytes[startOffset], offset: startOffset + 1 };
         if (p === "u16")
           return {
-            value: bytes[startOffset] | (bytes[startOffset + 1] << 8),
+            value: bytes[startOffset]! | (bytes[startOffset + 1]! << 8),
             offset: startOffset + 2,
           };
         if (p === "u32")
           return {
             value:
-              (bytes[startOffset] |
-                (bytes[startOffset + 1] << 8) |
-                (bytes[startOffset + 2] << 16) |
-                (bytes[startOffset + 3] << 24)) >>>
+              (bytes[startOffset]! |
+                (bytes[startOffset + 1]! << 8) |
+                (bytes[startOffset + 2]! << 16) |
+                (bytes[startOffset + 3]! << 24)) >>>
               0,
             offset: startOffset + 4,
           };
         if (p === "u64") {
           let v = BigInt(0);
-          for (let i = 0; i < 8; i++) v |= BigInt(bytes[startOffset + i]) << BigInt(i * 8);
+          for (let i = 0; i < 8; i++) v |= BigInt(bytes[startOffset + i]!) << BigInt(i * 8);
           return { value: v.toString(), offset: startOffset + 8 };
         }
         if (p === "u128") {
           let v = BigInt(0);
-          for (let i = 0; i < 16; i++) v |= BigInt(bytes[startOffset + i]) << BigInt(i * 8);
+          for (let i = 0; i < 16; i++) v |= BigInt(bytes[startOffset + i]!) << BigInt(i * 8);
           return { value: v.toString(), offset: startOffset + 16 };
         }
         break;
@@ -277,7 +277,7 @@ function readScaleValue(
       case "composite": {
         const fields = typeDef.value as Array<{ name?: string; type: number }>;
         if (fields.length === 1) {
-          return readScaleValue(bytes, startOffset, fields[0].type, registry, depth + 1);
+          return readScaleValue(bytes, startOffset, fields[0]!.type, registry, depth + 1);
         }
         const obj: Record<string, unknown> = {};
         let off = startOffset;
@@ -299,8 +299,8 @@ function readScaleValue(
         const variant = variants.find((v) => v.index === idx);
         if (!variant) break;
         if (variant.fields.length === 0) return { value: variant.name, offset: off1 };
-        if (variant.fields.length === 1 && !variant.fields[0].name) {
-          const inner = readScaleValue(bytes, off1, variant.fields[0].type, registry, depth + 1);
+        if (variant.fields.length === 1 && !variant.fields[0]!.name) {
+          const inner = readScaleValue(bytes, off1, variant.fields[0]!.type, registry, depth + 1);
           return { value: { [variant.name]: inner.value }, offset: inner.offset };
         }
         const obj: Record<string, unknown> = {};
@@ -374,11 +374,12 @@ export interface DecodedEvent {
 // ── ExtrinsicDecoder ─────────────────────────────────────────────────────────
 
 import type { RpcPool } from "../rpc-pool.js";
+import { LRUCache } from "../lru-cache.js";
 
 export class ExtrinsicDecoder {
   private rpcPool: RpcPool;
-  private metadataCache = new Map<number, PalletCallLookup>(); // specVersion → lookup
-  private specVersionForBlock = new Map<string, number>(); // blockHash → specVersion
+  private metadataCache = new LRUCache<number, PalletCallLookup>(50); // specVersion → lookup
+  private specVersionForBlock = new LRUCache<string, number>(10_000); // blockHash → specVersion
   /** In-flight metadata fetch promises keyed by specVersion — prevents duplicate fetches under concurrency */
   private metadataInflight = new Map<number, Promise<PalletCallLookup>>();
 
@@ -450,13 +451,13 @@ export class ExtrinsicDecoder {
       let { offset } = readCompact(bytes, 0);
 
       // 2. Version byte — bit 7 indicates signed
-      const version = bytes[offset++];
+      const version = bytes[offset++]!;
       const isSigned = (version & 0x80) !== 0;
 
       // ── Unsigned extrinsic ──────────────────────────────────────────────
       if (!isSigned) {
-        const palletIndex = bytes[offset];
-        const callIndex = bytes[offset + 1];
+        const palletIndex = bytes[offset]!;
+        const callIndex = bytes[offset + 1]!;
         const mod = this.resolvePalletName(palletIndex, lookup);
         const call = this.resolveCallName(palletIndex, callIndex, lookup);
         const args = this.decodeCallArgs(bytes, offset + 2, palletIndex, callIndex, lookup);
@@ -527,8 +528,8 @@ export class ExtrinsicDecoder {
 
       // Call data — decode pallet/call and arguments
       if (offset + 1 < bytes.length) {
-        const palletIndex = bytes[offset];
-        const callIndex = bytes[offset + 1];
+        const palletIndex = bytes[offset]!;
+        const callIndex = bytes[offset + 1]!;
         const mod = this.resolvePalletName(palletIndex, lookup);
         const call = this.resolveCallName(palletIndex, callIndex, lookup);
         const args = this.decodeCallArgs(bytes, offset + 2, palletIndex, callIndex, lookup);
@@ -593,10 +594,10 @@ export class ExtrinsicDecoder {
         if (phaseTag === 0) {
           // ApplyExtrinsic(u32) — little-endian
           extrinsicIndex =
-            bytes[offset] |
-            (bytes[offset + 1] << 8) |
-            (bytes[offset + 2] << 16) |
-            (bytes[offset + 3] << 24);
+            bytes[offset]! |
+            (bytes[offset + 1]! << 8) |
+            (bytes[offset + 2]! << 16) |
+            (bytes[offset + 3]! << 24);
           offset += 4;
           phaseType = "ApplyExtrinsic";
         } else if (phaseTag === 1) {
@@ -607,8 +608,8 @@ export class ExtrinsicDecoder {
 
         // ── RuntimeEvent outer enum ──
         // [pallet variant idx] [inner Event enum variant idx] [fields...]
-        const palletIndex = bytes[offset++];
-        const eventIndex = bytes[offset++];
+        const palletIndex = bytes[offset++]!;
+        const eventIndex = bytes[offset++]!;
 
         const palletName = lookup.palletsByIndex.get(palletIndex)?.name ?? `Pallet(${palletIndex})`;
         const eventVariant = lookup.eventsByPalletIndex.get(palletIndex)?.get(eventIndex);

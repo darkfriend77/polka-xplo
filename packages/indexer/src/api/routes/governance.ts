@@ -256,7 +256,7 @@ export function register(app: Express): void {
 
       const votes = await query(
         `SELECT * FROM gov_council_votes WHERE proposal_hash = $1 ORDER BY block_height DESC`,
-        [motionResult.rows[0].proposal_hash],
+        [motionResult.rows[0]!.proposal_hash],
       );
 
       res.json({ motion: motionResult.rows[0], votes: votes.rows });
@@ -356,7 +356,7 @@ export function register(app: Express): void {
 
       const votes = await query(
         `SELECT * FROM gov_techcomm_votes WHERE proposal_hash = $1 ORDER BY block_height DESC`,
-        [propResult.rows[0].proposal_hash],
+        [propResult.rows[0]!.proposal_hash],
       );
 
       res.json({ proposal: propResult.rows[0], votes: votes.rows });

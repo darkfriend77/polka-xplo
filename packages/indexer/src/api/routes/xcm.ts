@@ -68,7 +68,7 @@ export function register(app: Express): void {
       const where = conditions.length > 0 ? ` WHERE ${conditions.join(" AND ")}` : "";
 
       const countRes = await query(`SELECT COUNT(*) FROM xcm_messages${where}`, params);
-      const total = parseInt(String(countRes.rows[0].count), 10);
+      const total = parseInt(String(countRes.rows[0]!.count), 10);
 
       params.push(limit, offset);
       const rows = await query(
@@ -182,7 +182,7 @@ export function register(app: Express): void {
       const where = conditions.length > 0 ? ` WHERE ${conditions.join(" AND ")}` : "";
 
       const countRes = await query(`SELECT COUNT(*) FROM xcm_transfers t${where}`, params);
-      const total = parseInt(String(countRes.rows[0].count), 10);
+      const total = parseInt(String(countRes.rows[0]!.count), 10);
 
       params.push(limit, offset);
       const rows = await query(

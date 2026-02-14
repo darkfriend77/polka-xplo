@@ -312,7 +312,7 @@ export function register(app: Express, ctx: ApiContext): void {
         "SELECT COUNT(*) FROM asset_transfers WHERE from_address = $1 OR to_address = $1",
         [hexKey],
       );
-      const total = parseInt(String(countRes.rows[0].count), 10);
+      const total = parseInt(String(countRes.rows[0]!.count), 10);
 
       const rows = await query(
         `SELECT t.*, a.symbol, a.name AS asset_name, a.decimals

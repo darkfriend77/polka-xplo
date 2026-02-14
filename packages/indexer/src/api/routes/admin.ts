@@ -204,7 +204,7 @@ export function register(app: Express, ctx: ApiContext): void {
 
           // Re-decode each extrinsic and update
           for (let i = 0; i < blockData.block.extrinsics.length; i++) {
-            const hex = blockData.block.extrinsics[i];
+            const hex = blockData.block.extrinsics[i]!;
             const decoded = decoder.decodeCallInfo(hex, lookup);
             const extId = `${height}-${i}`;
 

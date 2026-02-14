@@ -80,7 +80,7 @@ export function ActivityChart() {
   const fetchData = useCallback(async (p: ActivityPeriod) => {
     setLoading(true);
     try {
-      const periodCfg = PERIODS.find((x) => x.key === p) ?? PERIODS[1];
+      const periodCfg = PERIODS.find((x) => x.key === p) ?? PERIODS[1]!;
       const res = await fetch(
         `${API_BASE}/api/stats/activity?period=${p}&limit=${periodCfg.defaultLimit}`,
       );

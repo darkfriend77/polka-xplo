@@ -66,4 +66,7 @@ COPY chain-config.json ./
 
 EXPOSE 3001
 
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD node -e "fetch('http://localhost:3001/health').then(r=>{if(!r.ok)throw r.status}).catch(()=>process.exit(1))"
+
 CMD ["sh", "-c", "node packages/db/dist/migrate.js && node packages/indexer/dist/index.js"]

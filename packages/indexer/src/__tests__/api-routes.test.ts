@@ -68,7 +68,7 @@ describe("GET /api/blocks", () => {
       { height: 100, hash: "0xabc", timestamp: 1700000000000, extrinsicCount: 3, eventCount: 5 },
       { height: 99, hash: "0xdef", timestamp: 1699999994000, extrinsicCount: 1, eventCount: 2 },
     ];
-    vi.mocked(getLatestBlocks).mockResolvedValue({ blocks: mockBlocks, total: 50 });
+    vi.mocked(getLatestBlocks).mockResolvedValue({ blocks: mockBlocks as any, total: 50 });
 
     const res = await request(app).get("/api/blocks?limit=2&offset=0");
 

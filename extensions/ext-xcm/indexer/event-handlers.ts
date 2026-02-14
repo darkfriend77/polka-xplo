@@ -181,7 +181,7 @@ async function handleXTokensTransferred(ctx: BlockContext, event: ExplorerEvent)
       [event.extrinsicId, ctx.blockHeight],
     );
     if (hashResult.rows.length > 0) {
-      messageHash = String(hashResult.rows[0].hash ?? "");
+      messageHash = String(hashResult.rows[0]!.hash ?? "");
     }
   }
 
@@ -933,8 +933,8 @@ async function resolveAssetSymbol(assetId: string): Promise<string> {
       `SELECT symbol FROM assets WHERE asset_id = $1`,
       [Number(assetId)],
     );
-    if (result.rows.length > 0 && result.rows[0].symbol) {
-      return String(result.rows[0].symbol);
+    if (result.rows.length > 0 && result.rows[0]!.symbol) {
+      return String(result.rows[0]!.symbol);
     }
   } catch {
     // assets table may not exist if ext-assets isn't loaded

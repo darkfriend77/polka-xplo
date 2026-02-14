@@ -39,7 +39,7 @@ export default async function HomePage() {
     stats = statsRes;
     transfers = transfersRes;
     if (specRes.versions.length > 0) {
-      specVersion = specRes.versions[0].specVersion;
+      specVersion = specRes.versions[0]!.specVersion;
     }
   } catch {
     error = "Unable to connect to the indexer. Is the backend running?";

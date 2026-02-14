@@ -169,9 +169,9 @@ function blockTimePercentiles(arr: number[]): { avg: number; p50: number; p95: n
   const len = sorted.length;
   return {
     avg: Math.round((sum / len) * 100) / 100,
-    p50: Math.round(sorted[Math.floor(len * 0.5)] * 100) / 100,
-    p95: Math.round(sorted[Math.floor(len * 0.95)] * 100) / 100,
-    max: Math.round(sorted[len - 1] * 100) / 100,
+    p50: Math.round(sorted[Math.floor(len * 0.5)]! * 100) / 100,
+    p95: Math.round(sorted[Math.floor(len * 0.95)]! * 100) / 100,
+    max: Math.round(sorted[len - 1]! * 100) / 100,
     count: len,
   };
 }

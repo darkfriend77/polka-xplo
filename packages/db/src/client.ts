@@ -79,10 +79,10 @@ function percentiles(arr: number[]): { avg: number; p50: number; p95: number; p9
   const len = sorted.length;
   return {
     avg: Math.round((sum / len) * 100) / 100,
-    p50: sorted[Math.floor(len * 0.5)],
-    p95: sorted[Math.floor(len * 0.95)],
-    p99: sorted[Math.floor(len * 0.99)],
-    max: sorted[len - 1],
+    p50: sorted[Math.floor(len * 0.5)] ?? 0,
+    p95: sorted[Math.floor(len * 0.95)] ?? 0,
+    p99: sorted[Math.floor(len * 0.99)] ?? 0,
+    max: sorted[len - 1] ?? 0,
     count: len,
   };
 }

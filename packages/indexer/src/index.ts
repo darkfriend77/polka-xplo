@@ -44,7 +44,7 @@ async function main(): Promise<void> {
   //    LOCAL_NODE_URL (optional): a co-located full node / collator RPC endpoint.
   //    When set, it is prepended to the pool so it becomes the primary (lowest
   //    latency) endpoint, with ARCHIVE_NODE_URL endpoints as fallback.
-  const rpcEnv = process.env.ARCHIVE_NODE_URL ?? chainConfig.rpc[0];
+  const rpcEnv = process.env.ARCHIVE_NODE_URL ?? chainConfig.rpc[0]!;
   const rpcUrls = rpcEnv
     .split(",")
     .map((u) => u.trim())
@@ -77,7 +77,7 @@ async function main(): Promise<void> {
   let pipeline: IngestionPipeline | null = null;
   try {
     // Primary URL for the PAPI WebSocket subscription client
-    const primaryUrl = rpcUrls[0];
+    const primaryUrl = rpcUrls[0]!;
     const activeConfig = { ...chainConfig, rpc: [primaryUrl] };
     const papiClient = getClient(activeConfig);
 

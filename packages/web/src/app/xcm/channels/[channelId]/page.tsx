@@ -34,8 +34,8 @@ export default async function XcmChannelDetailPage({
     );
   }
 
-  const fromParaId = parseInt(parts[0], 10);
-  const toParaId = parseInt(parts[1], 10);
+  const fromParaId = parseInt(parts[0] ?? "0", 10);
+  const toParaId = parseInt(parts[1] ?? "0", 10);
 
   let channel: XcmChannel | null = null;
   let recentMessages: XcmMessage[] = [];

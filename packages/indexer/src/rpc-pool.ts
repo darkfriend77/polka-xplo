@@ -83,7 +83,7 @@ export class RpcPool {
   /** Get the primary WSS URL (first healthy or first overall) */
   get primaryWsUrl(): string {
     const healthy = this.endpoints.find((ep) => ep.suspendedUntil < Date.now());
-    return (healthy ?? this.endpoints[0]).wsUrl;
+    return (healthy ?? this.endpoints[0]!).wsUrl;
   }
 
   /** Get all WSS URLs */
@@ -118,7 +118,7 @@ export class RpcPool {
       // Simple round-robin over healthy endpoints
       for (let i = 0; i < this.endpoints.length; i++) {
         const idx = (this.roundRobinIndex + i) % this.endpoints.length;
-        const ep = this.endpoints[idx];
+        const ep = this.endpoints[idx]!;
         if (ep.suspendedUntil <= now) {
           this.roundRobinIndex = (idx + 1) % this.endpoints.length;
           return ep;
@@ -134,10 +134,10 @@ export class RpcPool {
     const totalWeight = weights.reduce((a, b) => a + b, 0);
     let rand = Math.random() * totalWeight;
     for (let i = 0; i < healthy.length; i++) {
-      rand -= weights[i];
-      if (rand <= 0) return healthy[i];
+      rand -= weights[i]!;
+      if (rand <= 0) return healthy[i]!;
     }
-    return healthy[healthy.length - 1];
+    return healthy[healthy.length - 1]!;
   }
 
   /** Mark an endpoint as having succeeded */
@@ -259,8 +259,8 @@ function rpcPercentiles(arr: number[]): { avg: number; p50: number; p95: number;
   const len = sorted.length;
   return {
     avg: Math.round(sum / len),
-    p50: Math.round(sorted[Math.floor(len * 0.5)]),
-    p95: Math.round(sorted[Math.floor(len * 0.95)]),
-    max: Math.round(sorted[len - 1]),
+    p50: Math.round(sorted[Math.floor(len * 0.5)]!),
+    p95: Math.round(sorted[Math.floor(len * 0.95)]!),
+    max: Math.round(sorted[len - 1]!),
   };
 }

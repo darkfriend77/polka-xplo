@@ -10,6 +10,56 @@ import type {
 } from "@polka-xplo/shared";
 import { query, transaction } from "@polka-xplo/db";
 
+// ── Manifest Validation ──────────────────────────────────────────────────────
+
+/**
+ * Validate that a parsed JSON object conforms to the ExtensionManifest shape.
+ * Throws a descriptive error when a required field is missing or has the wrong type.
+ */
+export function validateManifest(raw: unknown, filePath: string): ExtensionManifest {
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    throw new Error(`Manifest ${filePath}: must be a JSON object`);
+  }
+
+  const obj = raw as Record<string, unknown>;
+
+  const requiredStrings = ["id", "name", "version", "palletId"] as const;
+  for (const key of requiredStrings) {
+    if (typeof obj[key] !== "string" || (obj[key] as string).length === 0) {
+      throw new Error(`Manifest ${filePath}: "${key}" must be a non-empty string`);
+    }
+  }
+
+  const requiredArrays = ["supportedEvents", "supportedCalls"] as const;
+  for (const key of requiredArrays) {
+    if (!Array.isArray(obj[key])) {
+      throw new Error(`Manifest ${filePath}: "${key}" must be an array`);
+    }
+    for (const item of obj[key] as unknown[]) {
+      if (typeof item !== "string") {
+        throw new Error(`Manifest ${filePath}: "${key}" must contain only strings`);
+      }
+    }
+  }
+
+  // Optional fields
+  if (obj.description !== undefined && typeof obj.description !== "string") {
+    throw new Error(`Manifest ${filePath}: "description" must be a string`);
+  }
+  if (obj.dependencies !== undefined) {
+    if (!Array.isArray(obj.dependencies)) {
+      throw new Error(`Manifest ${filePath}: "dependencies" must be an array`);
+    }
+    for (const item of obj.dependencies as unknown[]) {
+      if (typeof item !== "string") {
+        throw new Error(`Manifest ${filePath}: "dependencies" must contain only strings`);
+      }
+    }
+  }
+
+  return obj as unknown as ExtensionManifest;
+}
+
 /**
  * The Plugin Registry manages extension lifecycle:
  * - Discovery: scans /extensions directory for manifests
@@ -46,7 +96,7 @@ export class PluginRegistry {
 
       try {
         const manifestRaw = await fs.readFile(manifestPath, "utf-8");
-        const manifest: ExtensionManifest = JSON.parse(manifestRaw);
+        const manifest = validateManifest(JSON.parse(manifestRaw), manifestPath);
 
         console.log(`[Registry] Found extension: ${manifest.name} (${manifest.id})`);
 
@@ -155,7 +205,7 @@ export class PluginRegistry {
     // Build list of (module, event) pairs from the manifest's supportedEvents
     // Format is "Module.EventName"
     const pairs = ext.manifest.supportedEvents.map((key) => {
-      const [mod, evt] = key.split(".");
+      const [mod, evt] = key.split(".") as [string, string];
       return { module: mod, event: evt };
     });
 

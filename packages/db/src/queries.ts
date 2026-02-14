@@ -9,6 +9,37 @@ import type {
 import { query, transaction, type DbClient } from "./client.js";
 
 // ============================================================
+// Count Cache — avoids expensive COUNT(*) on every page request
+// ============================================================
+
+interface CacheEntry {
+  value: number;
+  expiresAt: number;
+}
+
+const COUNT_CACHE_TTL_MS = 10_000; // 10 seconds
+const countCache = new Map<string, CacheEntry>();
+
+/**
+ * Execute a COUNT query with TTL-based caching.
+ * The `cacheKey` must uniquely identify the query+params combination.
+ */
+async function cachedCount(
+  cacheKey: string,
+  sql: string,
+  params: unknown[] = [],
+): Promise<number> {
+  const now = Date.now();
+  const cached = countCache.get(cacheKey);
+  if (cached && cached.expiresAt > now) return cached.value;
+
+  const result = await query<{ count: string }>(sql, params);
+  const value = parseInt(result.rows[0]?.count ?? "0", 10);
+  countCache.set(cacheKey, { value, expiresAt: now + COUNT_CACHE_TTL_MS });
+  return value;
+}
+
+// ============================================================
 // Block Queries
 // ============================================================
 
@@ -58,7 +89,8 @@ export async function getBlockByHeight(height: number): Promise<Block | null> {
      FROM blocks WHERE height = $1`,
     [height],
   );
-  return result.rows.length > 0 ? mapBlock(result.rows[0]) : null;
+  const row = result.rows[0];
+  return row ? mapBlock(row) : null;
 }
 
 export async function getBlockByHash(hash: string): Promise<Block | null> {
@@ -67,25 +99,26 @@ export async function getBlockByHash(hash: string): Promise<Block | null> {
      FROM blocks WHERE hash = $1`,
     [hash],
   );
-  return result.rows.length > 0 ? mapBlock(result.rows[0]) : null;
+  const row = result.rows[0];
+  return row ? mapBlock(row) : null;
 }
 
 export async function getLatestBlocks(
   limit: number = 20,
   offset: number = 0,
 ): Promise<{ blocks: Block[]; total: number }> {
-  const [dataResult, countResult] = await Promise.all([
+  const [dataResult, total] = await Promise.all([
     query<Record<string, unknown>>(
       `SELECT height, hash, parent_hash, state_root, extrinsics_root, timestamp, validator_id, status, spec_version, event_count, extrinsic_count, digest_logs
        FROM blocks ORDER BY height DESC LIMIT $1 OFFSET $2`,
       [limit, offset],
     ),
-    query<{ count: string }>(`SELECT COUNT(*) as count FROM blocks`),
+    cachedCount("blocks", `SELECT COUNT(*) as count FROM blocks`),
   ]);
 
   return {
     blocks: dataResult.rows.map(mapBlock),
-    total: parseInt(countResult.rows[0].count, 10),
+    total,
   };
 }
 
@@ -170,17 +203,18 @@ export async function getExtrinsicsList(
 
   const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : ``;
 
-  const [dataRes, countRes] = await Promise.all([
+  const countKey = `extrinsics:${where}:${params.join(",")}`;
+  const [dataRes, total] = await Promise.all([
     query<Record<string, unknown>>(
       `SELECT id, block_height, tx_hash, index, signer, module, call, args, success, fee, tip
        FROM extrinsics ${where} ORDER BY block_height DESC, index DESC LIMIT $${idx++} OFFSET $${idx++}`,
       [...params, limit, offset],
     ),
-    query<{ count: string }>(`SELECT COUNT(*) AS count FROM extrinsics ${where}`, params),
+    cachedCount(countKey, `SELECT COUNT(*) AS count FROM extrinsics ${where}`, params),
   ]);
   return {
     data: dataRes.rows.map(mapExtrinsic),
-    total: parseInt(countRes.rows[0].count, 10),
+    total,
   };
 }
 
@@ -190,7 +224,8 @@ export async function getExtrinsicByHash(txHash: string): Promise<Extrinsic | nu
      FROM extrinsics WHERE tx_hash = $1 LIMIT 1`,
     [txHash],
   );
-  return result.rows.length > 0 ? mapExtrinsic(result.rows[0]) : null;
+  const row = result.rows[0];
+  return row ? mapExtrinsic(row) : null;
 }
 
 export async function getExtrinsicById(id: string): Promise<Extrinsic | null> {
@@ -199,7 +234,8 @@ export async function getExtrinsicById(id: string): Promise<Extrinsic | null> {
      FROM extrinsics WHERE id = $1 LIMIT 1`,
     [id],
   );
-  return result.rows.length > 0 ? mapExtrinsic(result.rows[0]) : null;
+  const row = result.rows[0];
+  return row ? mapExtrinsic(row) : null;
 }
 
 export async function getExtrinsicsBySigner(
@@ -295,20 +331,18 @@ export async function getEventsList(
   }
   const whereCount = countConditions.length > 0 ? `WHERE ${countConditions.join(" AND ")}` : ``;
 
-  const [dataRes, countRes] = await Promise.all([
+  const eventsCountKey = `events:${whereCount}:${countParams.join(",")}`;
+  const [dataRes, total] = await Promise.all([
     query<Record<string, unknown>>(
       `SELECT id, block_height, extrinsic_id, index, module, event, data, phase_type, phase_index
        FROM events ${whereData} ORDER BY block_height DESC, index DESC LIMIT $1 OFFSET $2`,
       dataParams,
     ),
-    query<{ count: string }>(
-      `SELECT COUNT(*) AS count FROM events ${whereCount}`,
-      countParams,
-    ),
+    cachedCount(eventsCountKey, `SELECT COUNT(*) AS count FROM events ${whereCount}`, countParams),
   ]);
   return {
     data: dataRes.rows.map(mapEvent),
-    total: parseInt(countRes.rows[0].count, 10),
+    total,
   };
 }
 
@@ -354,7 +388,7 @@ export async function getTransfersList(
   }[];
   total: number;
 }> {
-  const [dataRes, countRes] = await Promise.all([
+  const [dataRes, total] = await Promise.all([
     query<Record<string, unknown>>(
       `SELECT e.id as event_id, e.extrinsic_id, e.block_height, e.data,
               b.timestamp
@@ -365,7 +399,8 @@ export async function getTransfersList(
        LIMIT $1 OFFSET $2`,
       [limit, offset],
     ),
-    query<{ count: string }>(
+    cachedCount(
+      "transfers",
       `SELECT COUNT(*) AS count FROM events WHERE module = 'Balances' AND event IN ('Transfer', 'transfer')`,
     ),
   ]);
@@ -381,7 +416,7 @@ export async function getTransfersList(
       to: String(d.to ?? d.dest ?? ""),
     };
   });
-  return { data, total: parseInt(countRes.rows[0].count, 10) };
+  return { data, total };
 }
 
 // ============================================================
@@ -402,7 +437,7 @@ export async function getAccounts(
   limit = 25,
   offset = 0,
 ): Promise<{ data: AccountListItem[]; total: number }> {
-  const [dataRes, countRes] = await Promise.all([
+  const [dataRes, total] = await Promise.all([
     query<Record<string, unknown>>(
       `SELECT a.address, a.public_key, a.identity, a.last_active_block, a.created_at_block,
               b.free, b.reserved, b.frozen, b.flags,
@@ -416,10 +451,9 @@ export async function getAccounts(
        LIMIT $1 OFFSET $2`,
       [limit, offset],
     ),
-    query<{ count: string }>(`SELECT COUNT(*) AS count FROM accounts`),
+    cachedCount("accounts", `SELECT COUNT(*) AS count FROM accounts`),
   ]);
 
-  const total = parseInt(countRes.rows[0].count, 10);
   const data: AccountListItem[] = dataRes.rows.map((row) => ({
     address: row.address as string,
     publicKey: row.public_key as string,
@@ -489,7 +523,7 @@ export async function getAccount(
   );
   if (result.rows.length === 0) return null;
 
-  const row = result.rows[0];
+  const row = result.rows[0]!;
   return {
     address: row.address as string,
     publicKey: row.public_key as string,
@@ -517,7 +551,7 @@ export async function getIndexerState(chainId: string): Promise<IndexerStatus | 
     [chainId],
   );
   if (result.rows.length === 0) return null;
-  const row = result.rows[0];
+  const row = result.rows[0]!;
   return {
     chainId: row.chain_id as string,
     lastFinalizedBlock: Number(row.last_finalized_block),
@@ -559,23 +593,24 @@ export async function getChainStats(): Promise<{
   transfers: number;
   totalAccounts: number;
 }> {
-  const [blockRes, finRes, signedRes, transferRes, accountRes] = await Promise.all([
+  const [blockRes, finRes, signedExtrinsics, transfers, totalAccounts] = await Promise.all([
     query<{ height: string | null }>(`SELECT MAX(height) as height FROM blocks`),
     query<{ height: string | null }>(
       `SELECT MAX(height) as height FROM blocks WHERE status = 'finalized'`,
     ),
-    query<{ count: string }>(`SELECT COUNT(*) as count FROM extrinsics WHERE signer IS NOT NULL`),
-    query<{ count: string }>(
+    cachedCount("signed_extrinsics", `SELECT COUNT(*) as count FROM extrinsics WHERE signer IS NOT NULL`),
+    cachedCount(
+      "transfers",
       `SELECT COUNT(*) as count FROM events WHERE module = 'Balances' AND event IN ('Transfer', 'transfer')`,
     ),
-    query<{ count: string }>(`SELECT COUNT(*) as count FROM accounts`),
+    cachedCount("accounts", `SELECT COUNT(*) as count FROM accounts`),
   ]);
   return {
     latestBlock: blockRes.rows[0]?.height ? parseInt(String(blockRes.rows[0].height), 10) : 0,
     finalizedBlock: finRes.rows[0]?.height ? parseInt(String(finRes.rows[0].height), 10) : 0,
-    signedExtrinsics: parseInt(signedRes.rows[0].count, 10),
-    transfers: parseInt(transferRes.rows[0].count, 10),
-    totalAccounts: parseInt(accountRes.rows[0].count, 10),
+    signedExtrinsics,
+    transfers,
+    totalAccounts,
   };
 }
 
@@ -633,7 +668,7 @@ export async function getAccountTransfers(
   }[];
   total: number;
 }> {
-  const [dataRes, countRes] = await Promise.all([
+  const [dataRes, total] = await Promise.all([
     query<Record<string, unknown>>(
       `SELECT e.id as event_id, e.extrinsic_id, e.block_height, e.data,
               b.timestamp
@@ -645,7 +680,8 @@ export async function getAccountTransfers(
        LIMIT $2 OFFSET $3`,
       [address, limit, offset],
     ),
-    query<{ count: string }>(
+    cachedCount(
+      `account_transfers:${address}`,
       `SELECT COUNT(*) AS count
        FROM events
        WHERE module = 'Balances' AND event IN ('Transfer', 'transfer')
@@ -665,7 +701,7 @@ export async function getAccountTransfers(
       to: String(d.to ?? d.dest ?? ""),
     };
   });
-  return { data, total: parseInt(countRes.rows[0].count, 10) };
+  return { data, total };
 }
 
 export async function searchByHash(

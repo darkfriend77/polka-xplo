@@ -18,7 +18,7 @@ export function getClient(chainConfig: ChainConfig): PapiClient {
 
   console.log(`[PAPI] Connecting to ${chainConfig.name} via ${chainConfig.rpc[0]}`);
 
-  const provider = getWsProvider(chainConfig.rpc[0]);
+  const provider = getWsProvider(chainConfig.rpc[0]!);
   const client = createClient(provider);
 
   const papiClient: PapiClient = {

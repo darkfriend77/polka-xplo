@@ -42,7 +42,7 @@ export function register(app: Express): void {
       }
 
       const countRes = await query(`SELECT COUNT(*) FROM assets${where}`, status ? [status] : []);
-      const total = parseInt(String(countRes.rows[0].count), 10);
+      const total = parseInt(String(countRes.rows[0]!.count), 10);
 
       const rows = await query(
         `SELECT * FROM assets${where} ORDER BY asset_id ASC LIMIT $1 OFFSET $2`,
@@ -172,7 +172,7 @@ export function register(app: Express): void {
         "SELECT COUNT(*) FROM asset_transfers WHERE asset_id = $1",
         [assetId],
       );
-      const total = parseInt(String(countRes.rows[0].count), 10);
+      const total = parseInt(String(countRes.rows[0]!.count), 10);
 
       const rows = await query(
         `SELECT * FROM asset_transfers WHERE asset_id = $1 ORDER BY block_height DESC LIMIT $2 OFFSET $3`,

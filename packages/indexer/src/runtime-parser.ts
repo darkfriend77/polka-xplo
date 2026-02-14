@@ -29,13 +29,15 @@ export interface PalletSummary {
   errorCount: number;
 }
 
+import { LRUCache } from "./lru-cache.js";
+
 export interface RuntimeSummary {
   specVersion: number;
   pallets: PalletSummary[];
 }
 
-/** Cache: specVersion → RuntimeSummary */
-const runtimeCache = new Map<number, RuntimeSummary>();
+/** Cache: specVersion → RuntimeSummary (bounded to 50 entries) */
+const runtimeCache = new LRUCache<number, RuntimeSummary>(50);
 
 /**
  * Count the number of variants in a type definition from the raw types registry.
@@ -163,7 +165,7 @@ export async function getExistentialDeposit(rpcPool: RpcPool): Promise<string> {
           // u128 little-endian
           let value = 0n;
           for (let i = 0; i < 16; i++) {
-            value |= BigInt(bytes[i]) << BigInt(i * 8);
+            value |= BigInt(bytes[i]!) << BigInt(i * 8);
           }
           cachedED = value.toString();
           return cachedED;

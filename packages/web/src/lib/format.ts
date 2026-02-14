@@ -9,7 +9,7 @@ export { truncateHash, timeAgo } from "@polka-xplo/shared";
 /** Add apostrophe thousand separators to a numeric string (integer part only) */
 function addSeparators(numStr: string): string {
   const [intPart, decPart] = numStr.split(".");
-  const separated = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, "'");
+  const separated = (intPart ?? "0").replace(/\B(?=(\d{3})+(?!\d))/g, "'");
   return decPart !== undefined ? `${separated}.${decPart}` : separated;
 }
 

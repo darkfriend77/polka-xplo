@@ -353,6 +353,57 @@ export class IngestionPipeline {
     return this.fetchBlockViaLegacyRpc(height);
   }
 
+  /**
+   * Decode raw extrinsic hex strings and SCALE events for a block, correlate
+   * success/fee, and return the mapped arrays plus extracted timestamp.
+   *
+   * Shared by both PAPI and legacy-RPC fetch paths to avoid duplication.
+   */
+  private async decodeBlockContent(
+    blockHash: string,
+    rawExtrinsics: string[],
+  ): Promise<{
+    extrinsics: RawBlockData["extrinsics"];
+    events: RawBlockData["events"];
+    timestamp: number | null;
+    specVersion: number;
+  }> {
+    const { lookup, specVersion } = await this.decoder.ensureMetadata(blockHash);
+    let timestamp: number | null = null;
+
+    const extrinsics: RawBlockData["extrinsics"] = rawExtrinsics.map((encodedExt, i) => {
+      const decoded = this.decoder.decodeCallInfo(encodedExt, lookup);
+      const ts = this.decoder.extractTimestamp(encodedExt, decoded.module, decoded.call);
+      if (ts !== null) timestamp = ts;
+
+      return {
+        index: i,
+        hash: decoded.signer ? computeTxHash(decoded.rawHex) : null,
+        signer: decoded.signer,
+        module: decoded.module,
+        call: decoded.call,
+        args: decoded.args,
+        success: true, // will be corrected by enrichExtrinsicsFromEvents
+        fee: null, // will be filled by enrichExtrinsicsFromEvents
+        tip: decoded.tip,
+      };
+    });
+
+    const decodedEvents = await this.decoder.decodeEvents(blockHash, lookup);
+    const events: RawBlockData["events"] = decodedEvents.map((evt) => ({
+      index: evt.index,
+      extrinsicIndex: evt.extrinsicIndex,
+      module: evt.module,
+      event: evt.event,
+      data: evt.data,
+      phaseType: evt.phaseType,
+    }));
+
+    enrichExtrinsicsFromEvents(extrinsics, events);
+
+    return { extrinsics, events, timestamp, specVersion };
+  }
+
   /** Fetch a block via PAPI client (for live/recent blocks in chainHead follow window) */
   private async fetchBlockViaPapi(blockHash: string, height: number): Promise<RawBlockData | null> {
     try {
@@ -363,41 +414,9 @@ export class IngestionPipeline {
         client.getBlockBody(blockHash),
       ]);
 
-      // Decode extrinsic call info using runtime metadata
-      const { lookup, specVersion } = await this.decoder.ensureMetadata(blockHash);
-      let timestamp: number | null = null;
-
-      const extrinsics: RawBlockData["extrinsics"] = body.map((encodedExt, i) => {
-        const decoded = this.decoder.decodeCallInfo(encodedExt, lookup);
-        const ts = this.decoder.extractTimestamp(encodedExt, decoded.module, decoded.call);
-        if (ts !== null) timestamp = ts;
-
-        return {
-          index: i,
-          hash: decoded.signer ? computeTxHash(decoded.rawHex) : null,
-          signer: decoded.signer,
-          module: decoded.module,
-          call: decoded.call,
-          args: decoded.args,
-          success: true, // will be corrected by enrichExtrinsicsFromEvents
-          fee: null, // will be filled by enrichExtrinsicsFromEvents
-          tip: decoded.tip,
-        };
-      });
-
-      // Decode events from System.Events storage
-      const decodedEvents = await this.decoder.decodeEvents(blockHash, lookup);
-      const events: RawBlockData["events"] = decodedEvents.map((evt) => ({
-        index: evt.index,
-        extrinsicIndex: evt.extrinsicIndex,
-        module: evt.module,
-        event: evt.event,
-        data: evt.data,
-        phaseType: evt.phaseType,
-      }));
-
-      // Correlate success/fee from events back into extrinsics
-      enrichExtrinsicsFromEvents(extrinsics, events);
+      // Decode extrinsics + events via shared helper
+      const { extrinsics, events, timestamp, specVersion } =
+        await this.decodeBlockContent(blockHash, body);
 
       const hasRuntimeUpgrade = header.digests.some((d) => d.type === "runtimeUpdated");
       if (hasRuntimeUpgrade) {
@@ -467,41 +486,9 @@ export class IngestionPipeline {
       const { header, extrinsics: rawExts } = blockResult.block;
       const blockNumber = parseInt(header.number, 16);
 
-      // Decode extrinsic call info using runtime metadata
-      const { lookup, specVersion } = await this.decoder.ensureMetadata(hash);
-      let timestamp: number | null = null;
-
-      const extrinsics: RawBlockData["extrinsics"] = rawExts.map((encodedExt, i) => {
-        const decoded = this.decoder.decodeCallInfo(encodedExt, lookup);
-        const ts = this.decoder.extractTimestamp(encodedExt, decoded.module, decoded.call);
-        if (ts !== null) timestamp = ts;
-
-        return {
-          index: i,
-          hash: decoded.signer ? computeTxHash(decoded.rawHex) : null,
-          signer: decoded.signer,
-          module: decoded.module,
-          call: decoded.call,
-          args: decoded.args,
-          success: true, // will be corrected by enrichExtrinsicsFromEvents
-          fee: null, // will be filled by enrichExtrinsicsFromEvents
-          tip: decoded.tip,
-        };
-      });
-
-      // Decode events from System.Events storage
-      const decodedEvents = await this.decoder.decodeEvents(hash, lookup);
-      const events: RawBlockData["events"] = decodedEvents.map((evt) => ({
-        index: evt.index,
-        extrinsicIndex: evt.extrinsicIndex,
-        module: evt.module,
-        event: evt.event,
-        data: evt.data,
-        phaseType: evt.phaseType,
-      }));
-
-      // Correlate success/fee from events back into extrinsics
-      enrichExtrinsicsFromEvents(extrinsics, events);
+      // Decode extrinsics + events via shared helper
+      const { extrinsics, events, timestamp, specVersion } =
+        await this.decodeBlockContent(hash, rawExts);
 
       // Parse legacy RPC digest logs
       const digestLogs: DigestLog[] = (header.digest?.logs ?? []).map((hexLog: string) =>

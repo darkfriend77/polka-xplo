@@ -33,7 +33,7 @@ export default async function RuntimePage({
       error = "No runtime versions indexed yet. The indexer is still syncing.";
     } else {
       // Pick the requested version or the latest
-      activeVersion = params.v ? parseInt(params.v, 10) : versions[0].specVersion;
+      activeVersion = params.v ? parseInt(params.v, 10) : versions[0]!.specVersion;
       runtime = await getRuntimeModules(activeVersion);
     }
   } catch {

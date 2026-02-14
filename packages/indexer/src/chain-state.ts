@@ -42,7 +42,7 @@ function systemAccountKey(accountIdHex: string): string {
 function readU128(bytes: Uint8Array, offset: number): string {
   let value = 0n;
   for (let i = 0; i < 16; i++) {
-    value |= BigInt(bytes[offset + i]) << BigInt(i * 8);
+    value |= BigInt(bytes[offset + i]!) << BigInt(i * 8);
   }
   return value.toString();
 }
@@ -52,10 +52,10 @@ function readU128(bytes: Uint8Array, offset: number): string {
  */
 function readU32(bytes: Uint8Array, offset: number): number {
   return (
-    bytes[offset] |
-    (bytes[offset + 1] << 8) |
-    (bytes[offset + 2] << 16) |
-    (bytes[offset + 3] << 24)
+    bytes[offset]! |
+    (bytes[offset + 1]! << 8) |
+    (bytes[offset + 2]! << 16) |
+    (bytes[offset + 3]! << 24)
   ) >>> 0;
 }
 
@@ -197,7 +197,7 @@ export async function getLiveAssetBalances(
     const balance = readU128(bytes, 0);
     if (balance === "0") continue;
 
-    const statusByte = bytes[16];
+    const statusByte = bytes[16]!;
     const status = ASSET_STATUS[statusByte] ?? "Liquid";
 
     balances.push({
@@ -267,7 +267,7 @@ const JUDGEMENT_NAMES = [
  *   34..=37 => Hash variants (BlakeTwo256, Sha256, Keccak256, ShaThree256)
  */
 function decodeDataField(bytes: Uint8Array, offset: number): { value: string | null; len: number } {
-  const tag = bytes[offset];
+  const tag = bytes[offset]!;
   if (tag === 0) return { value: null, len: 1 };
   if (tag >= 1 && tag <= 33) {
     const rawLen = tag - 1;
@@ -291,18 +291,18 @@ function decodeDataField(bytes: Uint8Array, offset: number): { value: string | n
  * Returns value and number of bytes consumed.
  */
 function readCompact(bytes: Uint8Array, offset: number): { value: number; len: number } {
-  const first = bytes[offset];
+  const first = bytes[offset]!;
   const mode = first & 0x03;
   if (mode === 0) return { value: first >> 2, len: 1 };
   if (mode === 1)
-    return { value: ((bytes[offset] | (bytes[offset + 1] << 8)) >> 2), len: 2 };
+    return { value: ((bytes[offset]! | (bytes[offset + 1]! << 8)) >> 2), len: 2 };
   if (mode === 2)
     return {
       value:
-        ((bytes[offset] |
-          (bytes[offset + 1] << 8) |
-          (bytes[offset + 2] << 16) |
-          (bytes[offset + 3] << 24)) >>>
+        ((bytes[offset]! |
+          (bytes[offset + 1]! << 8) |
+          (bytes[offset + 2]! << 16) |
+          (bytes[offset + 3]! << 24)) >>>
           2),
       len: 4,
     };
@@ -346,7 +346,7 @@ export async function getLiveIdentity(
   for (let i = 0; i < jCount.value; i++) {
     const registrarIndex = readU32(bytes, off);
     off += 4;
-    const jTag = bytes[off++];
+    const jTag = bytes[off++]!;
     let judgement = JUDGEMENT_NAMES[jTag] ?? `Unknown(${jTag})`;
     if (jTag === 1) {
       // FeePaid includes a u128 balance
@@ -487,6 +487,6 @@ export async function getParachainId(rpcPool: RpcPool): Promise<number | null> {
 
   // u32 little-endian
   cachedParaId =
-    (bytes[0] | (bytes[1] << 8) | (bytes[2] << 16) | (bytes[3] << 24)) >>> 0;
+    (bytes[0]! | (bytes[1]! << 8) | (bytes[2]! << 16) | (bytes[3]! << 24)) >>> 0;
   return cachedParaId;
 }

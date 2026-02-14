@@ -10,14 +10,44 @@ const API_BASE =
     ? (process.env.API_URL ?? "http://localhost:3001")
     : "/indexer-api";
 
+/** Default timeout for API requests (ms) */
+const API_TIMEOUT_MS = 15_000;
+
+/** Maximum number of retry attempts for failed requests */
+const MAX_RETRIES = 2;
+
 async function fetchJson<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    next: { revalidate: 6 }, // Revalidate every ~1 block (6s)
-  });
-  if (!res.ok) {
-    throw new Error(`API error: ${res.status} ${res.statusText}`);
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+
+      const res = await fetch(`${API_BASE}${path}`, {
+        next: { revalidate: 6 }, // Revalidate every ~1 block (6s)
+        signal: controller.signal,
+      });
+      clearTimeout(timeoutId);
+
+      if (!res.ok) {
+        throw new Error(`API error: ${res.status} ${res.statusText}`);
+      }
+      return res.json() as Promise<T>;
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+
+      // Don't retry on 4xx errors (client errors)
+      if (lastError.message.startsWith("API error: 4")) throw lastError;
+
+      if (attempt < MAX_RETRIES) {
+        // Exponential backoff: 200ms, 400ms
+        await new Promise((r) => setTimeout(r, 200 * 2 ** attempt));
+      }
+    }
   }
-  return res.json() as Promise<T>;
+
+  throw lastError ?? new Error(`API request failed: ${path}`);
 }
 
 // ---- Blocks ----
