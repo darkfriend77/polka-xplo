@@ -10,6 +10,9 @@ COPY packages/db/package.json ./packages/db/
 COPY packages/indexer/package.json ./packages/indexer/
 COPY packages/web/package.json ./packages/web/
 COPY extensions/pallet-staking/package.json ./extensions/pallet-staking/
+COPY extensions/ext-assets/package.json ./extensions/ext-assets/
+COPY extensions/ext-governance/package.json ./extensions/ext-governance/
+COPY extensions/ext-xcm/package.json ./extensions/ext-xcm/
 
 # Install all dependencies (workspaces need the full graph)
 RUN npm install
