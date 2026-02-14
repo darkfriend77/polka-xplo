@@ -8,8 +8,10 @@ export const dynamic = "force-dynamic";
  */
 export default function IndexerStatusPage() {
   return (
-    <div className="space-y-4">
-      <h1 className="text-xl font-bold text-zinc-100">Indexer Status</h1>
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-zinc-100">Indexer Status</h1>
+      </div>
       <IndexerDashboard />
     </div>
   );

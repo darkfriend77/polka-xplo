@@ -80,11 +80,11 @@ export default async function ReferendumDetailPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-zinc-100">Referendum #{referendum.ref_index}</h1>
+      <div>
         <Link href="/governance/referenda" className="text-xs text-accent hover:underline">
-          ← All Referenda
+          ← Referenda
         </Link>
+        <h1 className="text-2xl font-bold text-zinc-100 mt-1">Referendum #{referendum.ref_index}</h1>
       </div>
 
       {/* Details Card */}

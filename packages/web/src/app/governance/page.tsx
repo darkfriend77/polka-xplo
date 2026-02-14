@@ -49,8 +49,11 @@ export default async function GovernancePage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-zinc-100">Governance</h1>
-        <p className="text-sm text-zinc-400 mt-1">
+        <Link href="/" className="text-xs text-accent hover:underline">
+          ← Home
+        </Link>
+        <h1 className="text-2xl font-bold text-zinc-100 mt-1">Governance</h1>
+        <p className="text-sm text-zinc-400 mt-0.5">
           Democracy, Council &amp; Technical Committee overview
         </p>
       </div>

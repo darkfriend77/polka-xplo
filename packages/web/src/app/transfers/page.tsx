@@ -2,6 +2,7 @@ import { getTransfersList, type TransfersResponse } from "@/lib/api";
 import { TransfersTable } from "@/components/TransfersTable";
 import { Pagination } from "@/components/Pagination";
 import { theme } from "@/lib/theme";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -30,11 +31,14 @@ export default async function TransfersPage({
   const totalPages = transfers ? Math.ceil(transfers.total / pageSize) : 0;
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-zinc-100">Transfers</h1>
+    <div className="space-y-6">
+      <div>
+        <Link href="/" className="text-xs text-accent hover:underline">
+          ← Home
+        </Link>
+        <h1 className="text-2xl font-bold text-zinc-100 mt-1">Transfers</h1>
         {transfers && (
-          <span className="text-sm text-zinc-400">{transfers.total.toLocaleString()} total</span>
+          <p className="text-sm text-zinc-400 mt-0.5">{transfers.total.toLocaleString()} total</p>
         )}
       </div>
 

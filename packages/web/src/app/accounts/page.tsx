@@ -2,6 +2,7 @@ import { getAccounts, type AccountsResponse } from "@/lib/api";
 import { theme } from "@/lib/theme";
 import { AccountsTable } from "@/components/AccountsTable";
 import { Pagination } from "@/components/Pagination";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -31,11 +32,14 @@ export default async function AccountsPage({
   const totalPages = accounts ? Math.ceil(accounts.total / pageSize) : 0;
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-zinc-100">Accounts</h1>
+    <div className="space-y-6">
+      <div>
+        <Link href="/" className="text-xs text-accent hover:underline">
+          ← Home
+        </Link>
+        <h1 className="text-2xl font-bold text-zinc-100 mt-1">Accounts</h1>
         {accounts && (
-          <span className="text-sm text-zinc-400">{accounts.total.toLocaleString()} total</span>
+          <p className="text-sm text-zinc-400 mt-0.5">{accounts.total.toLocaleString()} total</p>
         )}
       </div>
 

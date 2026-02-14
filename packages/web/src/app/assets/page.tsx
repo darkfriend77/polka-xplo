@@ -30,13 +30,14 @@ export default async function AssetsPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-zinc-100">Assets</h1>
-          <p className="text-sm text-zinc-400 mt-1">
-            {total} registered asset{total !== 1 ? "s" : ""}
-          </p>
-        </div>
+      <div>
+        <Link href="/" className="text-xs text-accent hover:underline">
+          ← Home
+        </Link>
+        <h1 className="text-2xl font-bold text-zinc-100 mt-1">Assets</h1>
+        <p className="text-sm text-zinc-400 mt-0.5">
+          {total} registered asset{total !== 1 ? "s" : ""}
+        </p>
       </div>
 
       {error && (

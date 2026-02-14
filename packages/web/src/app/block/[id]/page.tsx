@@ -4,6 +4,7 @@ import { EventList } from "@/components/EventList";
 import { LogList } from "@/components/LogList";
 import { BlockDetailTabs } from "@/components/BlockDetailTabs";
 import { truncateHash, formatNumber, formatDate, timeAgo } from "@/lib/format";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -30,11 +31,16 @@ export default async function BlockPage({ params }: { params: Promise<{ id: stri
   return (
     <div className="space-y-6">
       {/* Block Header */}
-      <div className="flex items-center gap-3">
-        <h1 className="text-xl font-bold text-zinc-100">Block #{formatNumber(block.height)}</h1>
-        <span className={block.status === "finalized" ? "badge-success" : "badge-info"}>
+      <div>
+        <Link href="/" className="text-xs text-accent hover:underline">
+          ← Home
+        </Link>
+        <div className="flex items-center gap-3 mt-1">
+          <h1 className="text-2xl font-bold text-zinc-100">Block #{formatNumber(block.height)}</h1>
+          <span className={block.status === "finalized" ? "badge-success" : "badge-info"}>
           {block.status}
         </span>
+        </div>
       </div>
 
       {/* Block Details Card */}

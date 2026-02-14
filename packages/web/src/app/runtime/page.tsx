@@ -47,10 +47,10 @@ export default async function RuntimePage({
   const totalErrors = runtime?.pallets.reduce((s, p) => s + p.errorCount, 0) ?? 0;
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-zinc-100">Runtime Modules</h1>
-        {runtime && <span className="text-sm text-zinc-400">{runtime.pallets.length} pallets</span>}
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-zinc-100">Runtime Modules</h1>
+        {runtime && <p className="text-sm text-zinc-400 mt-0.5">{runtime.pallets.length} pallets</p>}
       </div>
 
       {/* Spec version selector */}

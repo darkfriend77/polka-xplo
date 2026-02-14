@@ -32,14 +32,11 @@ export default async function XcmChannelsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <div className="flex items-center gap-2">
-          <Link href="/xcm" className="text-xs text-accent hover:underline">
-            XCM
-          </Link>
-          <span className="text-xs text-zinc-600">/</span>
-          <h1 className="text-2xl font-bold text-zinc-100">Channels</h1>
-        </div>
-        <p className="text-sm text-zinc-400 mt-1">
+        <Link href="/xcm" className="text-xs text-accent hover:underline">
+          ← XCM
+        </Link>
+        <h1 className="text-2xl font-bold text-zinc-100 mt-1">Channels</h1>
+        <p className="text-sm text-zinc-400 mt-0.5">
           {channels.length} active cross-chain channel{channels.length !== 1 ? "s" : ""}
         </p>
       </div>

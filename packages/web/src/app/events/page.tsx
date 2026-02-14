@@ -2,6 +2,7 @@ import { getEvents, getEventModules, type EventsResponse } from "@/lib/api";
 import { EventsTable } from "@/components/EventsTable";
 import { EventFilter } from "@/components/EventFilter";
 import { Pagination } from "@/components/Pagination";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -40,13 +41,16 @@ export default async function EventsPage({
   const filterLabel = [module, eventNames?.join(", ")].filter(Boolean).join(": ");
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <h1 className="text-xl font-bold text-zinc-100">
+    <div className="space-y-6">
+      <div>
+        <Link href="/" className="text-xs text-accent hover:underline">
+          ← Home
+        </Link>
+        <h1 className="text-2xl font-bold text-zinc-100 mt-1">
           Events{filterLabel ? `: ${filterLabel}` : ""}
         </h1>
         {events && (
-          <span className="text-sm text-zinc-400">{events.total.toLocaleString()} total</span>
+          <p className="text-sm text-zinc-400 mt-0.5">{events.total.toLocaleString()} total</p>
         )}
       </div>
 

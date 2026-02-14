@@ -23,10 +23,10 @@ export default async function ChainStatePage({
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-xl font-bold text-zinc-100">
+        <h1 className="text-2xl font-bold text-zinc-100">
           Chain State: {pallet}.{storage}
         </h1>
-        <p className="text-sm text-zinc-400 mt-1">
+        <p className="text-sm text-zinc-400 mt-0.5">
           Browse runtime storage maps using on-chain metadata
         </p>
       </div>

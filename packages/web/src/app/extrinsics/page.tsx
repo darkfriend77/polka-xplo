@@ -3,6 +3,7 @@ import { ExtrinsicsTable } from "@/components/ExtrinsicsTable";
 import { ExtrinsicFilter } from "@/components/ExtrinsicFilter";
 import { Pagination } from "@/components/Pagination";
 import { theme } from "@/lib/theme";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -42,13 +43,16 @@ export default async function ExtrinsicsPage({
   const filterLabel = [module, call].filter(Boolean).join(".");
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <h1 className="text-xl font-bold text-zinc-100">
+    <div className="space-y-6">
+      <div>
+        <Link href="/" className="text-xs text-accent hover:underline">
+          ← Home
+        </Link>
+        <h1 className="text-2xl font-bold text-zinc-100 mt-1">
           Extrinsics{filterLabel ? `: ${filterLabel}` : ""}
         </h1>
         {extrinsics && (
-          <span className="text-sm text-zinc-400">{extrinsics.total.toLocaleString()} total</span>
+          <p className="text-sm text-zinc-400 mt-0.5">{extrinsics.total.toLocaleString()} total</p>
         )}
       </div>
 

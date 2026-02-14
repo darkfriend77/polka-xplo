@@ -53,17 +53,14 @@ export default async function XcmChannelDetailPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-2 text-xs">
-        <Link href="/xcm" className="text-accent hover:underline">XCM</Link>
-        <span className="text-zinc-600">/</span>
-        <Link href="/xcm/channels" className="text-accent hover:underline">Channels</Link>
-        <span className="text-zinc-600">/</span>
-        <span className="text-zinc-400">{paraName(fromParaId)} → {paraName(toParaId)}</span>
+      <div>
+        <Link href="/xcm/channels" className="text-xs text-accent hover:underline">
+          ← Channels
+        </Link>
+        <h1 className="text-2xl font-bold text-zinc-100 mt-1">
+          {paraName(fromParaId)} → {paraName(toParaId)}
+        </h1>
       </div>
-
-      <h1 className="text-2xl font-bold text-zinc-100">
-        {paraName(fromParaId)} → {paraName(toParaId)}
-      </h1>
 
       {error && (
         <div className="rounded-lg border border-yellow-800/50 bg-yellow-950/30 p-3 text-sm text-yellow-300">

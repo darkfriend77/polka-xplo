@@ -1,6 +1,7 @@
 import { getLogs, type LogsResponse } from "@/lib/api";
 import { LogsTable } from "@/components/LogsTable";
 import { Pagination } from "@/components/Pagination";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -29,10 +30,13 @@ export default async function LogsPage({
   const totalPages = logs ? Math.ceil(logs.total / pageSize) : 0;
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-zinc-100">Logs</h1>
-        {logs && <span className="text-sm text-zinc-400">{logs.total.toLocaleString()} total</span>}
+    <div className="space-y-6">
+      <div>
+        <Link href="/" className="text-xs text-accent hover:underline">
+          ← Home
+        </Link>
+        <h1 className="text-2xl font-bold text-zinc-100 mt-1">Logs</h1>
+        {logs && <p className="text-sm text-zinc-400 mt-0.5">{logs.total.toLocaleString()} total</p>}
       </div>
 
       {error && (

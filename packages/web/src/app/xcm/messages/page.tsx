@@ -45,19 +45,14 @@ export default async function XcmMessagesPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <div className="flex items-center gap-2">
-            <Link href="/xcm" className="text-xs text-accent hover:underline">
-              XCM
-            </Link>
-            <span className="text-xs text-zinc-600">/</span>
-            <h1 className="text-2xl font-bold text-zinc-100">Messages</h1>
-          </div>
-          <p className="text-sm text-zinc-400 mt-1">
-            {total.toLocaleString()} XCM message{total !== 1 ? "s" : ""}
-          </p>
-        </div>
+      <div>
+        <Link href="/xcm" className="text-xs text-accent hover:underline">
+          ← XCM
+        </Link>
+        <h1 className="text-2xl font-bold text-zinc-100 mt-1">Messages</h1>
+        <p className="text-sm text-zinc-400 mt-0.5">
+          {total.toLocaleString()} XCM message{total !== 1 ? "s" : ""}
+        </p>
       </div>
 
       {/* Filters */}

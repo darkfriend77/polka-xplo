@@ -1,6 +1,7 @@
 import { getBlocks, type BlocksResponse } from "@/lib/api";
 import { BlocksTable } from "@/components/BlocksTable";
 import { Pagination } from "@/components/Pagination";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -29,11 +30,14 @@ export default async function BlocksPage({
   const totalPages = blocks ? Math.ceil(blocks.total / pageSize) : 0;
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-zinc-100">Blocks</h1>
+    <div className="space-y-6">
+      <div>
+        <Link href="/" className="text-xs text-accent hover:underline">
+          ← Home
+        </Link>
+        <h1 className="text-2xl font-bold text-zinc-100 mt-1">Blocks</h1>
         {blocks && (
-          <span className="text-sm text-zinc-400">{blocks.total.toLocaleString()} total</span>
+          <p className="text-sm text-zinc-400 mt-0.5">{blocks.total.toLocaleString()} total</p>
         )}
       </div>
 

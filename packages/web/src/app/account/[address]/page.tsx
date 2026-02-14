@@ -4,6 +4,7 @@ import { AddressDisplay } from "@/components/AddressDisplay";
 import { Identicon } from "@/components/Identicon";
 import { formatBalance, formatNumber } from "@/lib/format";
 import { theme } from "@/lib/theme";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -49,6 +50,9 @@ export default async function AccountPage({ params }: { params: Promise<{ addres
 
   return (
     <div className="space-y-6">
+      <Link href="/" className="text-xs text-accent hover:underline">
+        ← Home
+      </Link>
       {/* ── Three-panel overview row ─────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
 

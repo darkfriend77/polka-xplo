@@ -43,14 +43,12 @@ export default async function ProposalsPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-zinc-100">Democracy Proposals</h1>
-          <p className="text-sm text-zinc-400 mt-1">{total} total proposals</p>
-        </div>
+      <div>
         <Link href="/governance" className="text-xs text-accent hover:underline">
           ← Governance
         </Link>
+        <h1 className="text-2xl font-bold text-zinc-100 mt-1">Democracy Proposals</h1>
+        <p className="text-sm text-zinc-400 mt-0.5">{total} total proposals</p>
       </div>
 
       {/* Status filter */}

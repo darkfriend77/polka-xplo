@@ -35,13 +35,13 @@ export default async function TechCommProposalDetailPage({
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-zinc-100">
+      <div>
+        <Link href="/governance/techcomm" className="text-xs text-accent hover:underline">
+          ← Technical Committee
+        </Link>
+        <h1 className="text-2xl font-bold text-zinc-100 mt-1">
           Tech Committee Proposal #{proposal.proposal_index}
         </h1>
-        <Link href="/governance/techcomm" className="text-xs text-accent hover:underline">
-          ← All Proposals
-        </Link>
       </div>
 
       {/* Details Card */}

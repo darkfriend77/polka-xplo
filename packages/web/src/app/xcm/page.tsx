@@ -24,8 +24,11 @@ export default async function XcmPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-zinc-100">Cross-Chain (XCM)</h1>
-        <p className="text-sm text-zinc-400 mt-1">
+        <Link href="/" className="text-xs text-accent hover:underline">
+          ← Home
+        </Link>
+        <h1 className="text-2xl font-bold text-zinc-100 mt-1">Cross-Chain (XCM)</h1>
+        <p className="text-sm text-zinc-400 mt-0.5">
           Cross-consensus messaging — messages, transfers, and channels
         </p>
       </div>
