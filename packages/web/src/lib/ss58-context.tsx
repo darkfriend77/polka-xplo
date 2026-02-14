@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, useCallback } from "react";
-import { ss58Encode } from "@polka-xplo/shared";
+import { ss58Encode, ss58Decode } from "@polka-xplo/shared";
 
 /** Well-known SS58 prefixes */
 export const SS58_PRESETS = [
@@ -37,12 +37,13 @@ export function SS58Provider({
   const formatAddress = useCallback(
     (hexOrSs58: string): string => {
       if (!hexOrSs58) return "—";
-      // If it looks like a hex public key, encode it
+      // If it looks like a hex public key, encode it directly
       if (/^0x[0-9a-fA-F]{64}$/.test(hexOrSs58)) {
         return ss58Encode(hexOrSs58, prefix);
       }
-      // Already an SS58 address — re-encode with current prefix
-      // (simple passthrough if we can't decode)
+      // Already an SS58 address — decode to hex first, then re-encode with current prefix
+      const hex = ss58Decode(hexOrSs58);
+      if (hex) return ss58Encode(hex, prefix);
       return hexOrSs58;
     },
     [prefix],
