@@ -603,3 +603,96 @@ export async function getAssetTransfers(
 ): Promise<{ data: AssetTransfer[]; total: number }> {
   return fetchJson(`/api/assets/${assetId}/transfers?limit=${limit}&offset=${offset}`);
 }
+
+// ---- XCM ----
+
+export interface XcmMessage {
+  id: number;
+  message_hash: string | null;
+  message_id: string | null;
+  direction: "inbound" | "outbound";
+  protocol: "HRMP" | "UMP" | "DMP";
+  origin_para_id: number | null;
+  dest_para_id: number | null;
+  sender: string | null;
+  success: boolean | null;
+  block_height: number;
+  extrinsic_id: string | null;
+  created_at: string;
+}
+
+export interface XcmTransfer {
+  id: number;
+  xcm_message_id: number;
+  direction: "inbound" | "outbound";
+  from_chain_id: number | null;
+  to_chain_id: number | null;
+  from_address: string | null;
+  to_address: string | null;
+  asset_id: string | null;
+  asset_symbol: string | null;
+  amount: string;
+  block_height: number;
+  extrinsic_id: string | null;
+  created_at: string;
+  message_hash: string | null;
+  protocol: string | null;
+}
+
+export interface XcmChannel {
+  id: number;
+  from_para_id: number;
+  to_para_id: number;
+  status: string;
+  message_count: number;
+  transfer_count: number;
+  first_seen_block: number | null;
+  last_seen_block: number | null;
+}
+
+export interface XcmSummary {
+  messages: Record<string, Record<string, number>>;
+  transfers: Record<string, { count: number; assets: number }>;
+  channelCount: number;
+}
+
+export async function getXcmMessages(
+  limit = 25,
+  offset = 0,
+  opts?: { direction?: string; protocol?: string; chain_id?: number },
+): Promise<{ data: XcmMessage[]; total: number; page: number; pageSize: number; hasMore: boolean }> {
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  if (opts?.direction) params.set("direction", opts.direction);
+  if (opts?.protocol) params.set("protocol", opts.protocol);
+  if (opts?.chain_id != null) params.set("chain_id", String(opts.chain_id));
+  return fetchJson(`/api/xcm/messages?${params}`);
+}
+
+export async function getXcmTransfers(
+  limit = 25,
+  offset = 0,
+  opts?: { direction?: string; asset?: string; from_chain?: number; to_chain?: number; address?: string },
+): Promise<{ data: XcmTransfer[]; total: number; page: number; pageSize: number; hasMore: boolean }> {
+  const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+  if (opts?.direction) params.set("direction", opts.direction);
+  if (opts?.asset) params.set("asset", opts.asset);
+  if (opts?.from_chain != null) params.set("from_chain", String(opts.from_chain));
+  if (opts?.to_chain != null) params.set("to_chain", String(opts.to_chain));
+  if (opts?.address) params.set("address", opts.address);
+  return fetchJson(`/api/xcm/transfers?${params}`);
+}
+
+export async function getXcmChannels(): Promise<{ data: XcmChannel[] }> {
+  return fetchJson(`/api/xcm/channels`);
+}
+
+export async function getXcmChannelDetail(
+  fromParaId: number,
+  toParaId: number,
+): Promise<{ channel: XcmChannel; recentMessages: XcmMessage[]; recentTransfers: XcmTransfer[] }> {
+  return fetchJson(`/api/xcm/channels/${fromParaId}-${toParaId}`);
+}
+
+export async function getXcmSummary(): Promise<XcmSummary> {
+  return fetchJson(`/api/xcm/summary`);
+}
