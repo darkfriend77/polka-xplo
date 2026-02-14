@@ -890,6 +890,80 @@ export function createApiServer(
 
   /**
    * @openapi
+   * /api/accounts/{address}/asset-transfers:
+   *   get:
+   *     tags: [Accounts]
+   *     summary: Asset pallet transfers involving an account
+   *     description: Returns paginated asset (non-native) transfers where the account is sender or receiver.
+   *     parameters:
+   *       - in: path
+   *         name: address
+   *         required: true
+   *         schema:
+   *           type: string
+   *         description: SS58 or hex address
+   *       - in: query
+   *         name: limit
+   *         schema:
+   *           type: integer
+   *           default: 25
+   *       - in: query
+   *         name: offset
+   *         schema:
+   *           type: integer
+   *           default: 0
+   *     responses:
+   *       200:
+   *         description: Paginated asset transfers for the account
+   *       400:
+   *         description: Invalid address
+   */
+  app.get("/api/accounts/:address/asset-transfers", async (req, res) => {
+    try {
+      const { address } = req.params;
+      if (!address || address.length > 128) {
+        res.status(400).json({ error: "Invalid address format" });
+        return;
+      }
+      const hexKey = normalizeAddress(address);
+      if (!hexKey) {
+        res.status(400).json({ error: "Invalid address" });
+        return;
+      }
+      const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 25, 1), 100);
+      const offset = Math.max(parseInt(req.query.offset as string) || 0, 0);
+
+      const countRes = await query(
+        "SELECT COUNT(*) FROM asset_transfers WHERE from_address = $1 OR to_address = $1",
+        [hexKey],
+      );
+      const total = parseInt(String(countRes.rows[0].count), 10);
+
+      const rows = await query(
+        `SELECT t.*, a.symbol, a.name AS asset_name, a.decimals
+         FROM asset_transfers t
+         LEFT JOIN assets a ON a.asset_id = t.asset_id
+         WHERE t.from_address = $1 OR t.to_address = $1
+         ORDER BY t.block_height DESC, t.id DESC
+         LIMIT $2 OFFSET $3`,
+        [hexKey, limit, offset],
+      );
+
+      const page = Math.floor(offset / limit) + 1;
+      res.json({
+        data: rows.rows,
+        total,
+        page,
+        pageSize: limit,
+        hasMore: offset + limit < total,
+      });
+    } catch {
+      res.status(500).json({ error: "Failed to fetch account asset transfers" });
+    }
+  });
+
+  /**
+   * @openapi
    * /api/stats:
    *   get:
    *     tags: [Stats]

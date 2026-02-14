@@ -159,8 +159,35 @@ export default async function AccountPage({ params }: { params: Promise<{ addres
         </div>
       </div>
 
+      {/* Non-native asset balances */}
+      {assetBalances && assetBalances.length > 0 && (
+        <div className="card space-y-3">
+          <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Assets</h2>
+          <div className="divide-y divide-zinc-800">
+            {assetBalances.map((asset) => (
+              <div key={asset.assetId} className="flex items-center justify-between py-2 first:pt-0 last:pb-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-zinc-200">{asset.symbol}</span>
+                  {asset.name && asset.name !== asset.symbol && (
+                    <span className="text-xs text-zinc-500">{asset.name}</span>
+                  )}
+                  {asset.status !== "Liquid" && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 font-medium">
+                      {asset.status}
+                    </span>
+                  )}
+                </div>
+                <span className="text-sm font-mono tabular-nums text-zinc-200">
+                  {formatBalance(asset.balance, asset.decimals, asset.symbol)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Activity tabs: Extrinsics, Transfers, Assets, XCM */}
-      <AccountActivity address={address} extrinsics={recentExtrinsics} assetBalances={assetBalances} />
+      <AccountActivity address={address} hexAddress={account.publicKey} extrinsics={recentExtrinsics} />
     </div>
   );
 }
