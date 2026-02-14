@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import { useSS58 } from "@/lib/ss58-context";
 
 /**
@@ -24,9 +25,9 @@ export function AddressDisplay({
 
   if (link) {
     return (
-      <a href={`/account/${address}`} className={`text-accent hover:underline ${className}`}>
+      <Link href={`/account/${address}`} className={`text-accent hover:underline ${className}`}>
         {display}
-      </a>
+      </Link>
     );
   }
 

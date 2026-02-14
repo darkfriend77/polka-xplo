@@ -1,4 +1,5 @@
 import React from "react";
+import Link from "next/link";
 import type { BlockSummary } from "@/lib/api";
 import { truncateHash, timeAgo } from "@/lib/format";
 
@@ -48,9 +49,9 @@ export function BlocksTable({ blocks }: { blocks: BlockSummary[] }) {
               <td className="py-2.5 pr-4 text-right text-zinc-300">{block.eventCount}</td>
               <td className="py-2.5 pr-4 font-mono text-xs">
                 {block.validatorId ? (
-                  <a href={`/account/${block.validatorId}`} className="text-accent hover:underline">
+                  <Link href={`/account/${block.validatorId}`} className="text-accent hover:underline">
                     {truncateHash(block.validatorId)}
-                  </a>
+                  </Link>
                 ) : (
                   <span className="text-zinc-600">—</span>
                 )}

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Image from "next/image";
+import Link from "next/link";
 import { SearchBar } from "../components/SearchBar";
 import { Providers } from "../components/Providers";
 import { HeaderNav } from "../components/HeaderNav";
@@ -82,7 +83,7 @@ function Header() {
       {/* Row 1 — branding + navigation (z-20 so dropdowns overlap Row 2) */}
       <div className="relative z-20 max-w-7xl mx-auto px-4 h-12 flex items-center justify-between gap-4">
         {/* Left: brand wordmark or logo + name */}
-        <a href="/" className="flex items-center gap-2 shrink-0 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 border border-white/10 transition-colors cursor-pointer">
+        <Link href="/" className="flex items-center gap-2 shrink-0 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 border border-white/10 transition-colors cursor-pointer">
           {theme.brand ? (
             <Image
               src={theme.brand}
@@ -106,7 +107,7 @@ function Header() {
               <span className="text-base font-bold text-accent">{theme.name}</span>
             </>
           )}
-        </a>
+        </Link>
 
         {/* Center / right: nav links + chain badge */}
         <HeaderNav apiDocsUrl={apiDocsUrl} />

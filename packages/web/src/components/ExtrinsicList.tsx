@@ -1,4 +1,5 @@
 import React from "react";
+import Link from "next/link";
 import type { ExtrinsicSummary } from "@/lib/api";
 import { truncateHash } from "@/lib/format";
 import { AddressDisplay } from "./AddressDisplay";
@@ -29,9 +30,9 @@ export function ExtrinsicList({ extrinsics }: { extrinsics: ExtrinsicSummary[] }
           {extrinsics.map((ext) => (
             <tr key={ext.id} className="table-row">
               <td className="py-2.5 pr-4 font-mono text-xs">
-                <a href={`/extrinsic/${ext.id}`} className="text-accent hover:underline">
+                <Link href={`/extrinsic/${ext.id}`} className="text-accent hover:underline">
                   {ext.id}
-                </a>
+                </Link>
               </td>
               <td className="py-2.5 pr-4">
                 {ext.txHash ? (

@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import type { EventSummary } from "@/lib/api";
 import { JsonView } from "./JsonView";
 
@@ -50,9 +51,9 @@ function EventRow({ event }: { event: EventSummary }) {
         <td className="py-2.5 pr-4 font-mono text-xs text-zinc-400">{event.id}</td>
         <td className="py-2.5 pr-4 font-mono text-xs">
           {event.extrinsicId ? (
-            <a href={`/extrinsic/${event.extrinsicId}`} className="text-accent hover:underline">
+            <Link href={`/extrinsic/${event.extrinsicId}`} className="text-accent hover:underline">
               {event.extrinsicId}
-            </a>
+            </Link>
           ) : (
             <span className="text-zinc-400">—</span>
           )}

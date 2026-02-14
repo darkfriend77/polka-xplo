@@ -11,6 +11,7 @@ import { ChainOverview } from "@/components/ChainOverview";
 import { StatsBar } from "@/components/StatsBar";
 import { LatestBlocksCard } from "@/components/LatestBlocksCard";
 import { LatestTransfersCard } from "@/components/LatestTransfersCard";
+import Link from "next/link";
 import { ActivityChartWrapper } from "@/components/ActivityChartWrapper";
 import { theme } from "@/lib/theme";
 
@@ -68,9 +69,9 @@ export default async function HomePage() {
         <section>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-semibold text-zinc-100">Latest Blocks</h2>
-            <a href="/blocks" className="text-xs text-accent hover:underline">
+            <Link href="/blocks" className="text-xs text-accent hover:underline">
               View All
-            </a>
+            </Link>
           </div>
           <div className="card">
             <LatestBlocksCard blocks={blocks} />
@@ -81,9 +82,9 @@ export default async function HomePage() {
         <section>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-lg font-semibold text-zinc-100">Signed Transfers</h2>
-            <a href="/transfers" className="text-xs text-accent hover:underline">
+            <Link href="/transfers" className="text-xs text-accent hover:underline">
               View All
-            </a>
+            </Link>
           </div>
           <div className="card">
             <LatestTransfersCard

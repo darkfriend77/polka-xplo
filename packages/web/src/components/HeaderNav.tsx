@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
+import Link from "next/link";
 import { PrefixSelector } from "./PrefixSelector";
 import { useTheme } from "@/lib/theme-context";
 
@@ -92,18 +93,18 @@ export function HeaderNav({ apiDocsUrl }: { apiDocsUrl: string }) {
     <nav className="hidden sm:flex items-center gap-3 text-sm text-zinc-400">
       <NavDropdown label="Blockchain" links={blockchainLinks} />
       <NavDropdown label="Governance" links={governanceLinks} />
-      <a href="/assets" className="hover:text-zinc-100 transition-colors">
+      <Link href="/assets" className="hover:text-zinc-100 transition-colors">
         Assets
-      </a>
-      <a href="/xcm" className="hover:text-zinc-100 transition-colors">
+      </Link>
+      <Link href="/xcm" className="hover:text-zinc-100 transition-colors">
         XCM
-      </a>
-      <a href="/chain-state/System/Account" className="hover:text-zinc-100 transition-colors">
+      </Link>
+      <Link href="/chain-state/System/Account" className="hover:text-zinc-100 transition-colors">
         Chain State
-      </a>
-      <a href="/status" className="hover:text-zinc-100 transition-colors">
+      </Link>
+      <Link href="/status" className="hover:text-zinc-100 transition-colors">
         Status
-      </a>
+      </Link>
       <a
         href={apiDocsUrl}
         target="_blank"

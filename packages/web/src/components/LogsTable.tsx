@@ -1,4 +1,5 @@
 import React from "react";
+import Link from "next/link";
 import type { DigestLogEntry } from "@/lib/api";
 import { truncateHash } from "@/lib/format";
 
@@ -27,9 +28,9 @@ export function LogsTable({ logs }: { logs: DigestLogEntry[] }) {
           {logs.map((log, i) => (
             <tr key={`${log.blockHeight}-${log.logIndex}-${i}`} className="table-row">
               <td className="py-2.5 pr-4 font-mono text-xs text-zinc-300">
-                <a href={`/block/${log.blockHeight}`} className="text-accent hover:underline">
+                <Link href={`/block/${log.blockHeight}`} className="text-accent hover:underline">
                   {log.blockHeight}-{log.logIndex}
-                </a>
+                </Link>
               </td>
               <td className="py-2.5 pr-4">
                 <a
