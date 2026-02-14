@@ -124,8 +124,33 @@ function Header() {
 
 function Footer() {
   return (
-    <footer className="border-t border-zinc-800 py-4 text-center text-xs text-zinc-500">
-      {theme.name} Explorer &mdash; Powered by PAPI
+    <footer className="py-6 text-xs text-zinc-500">
+      {/* Centered rule ~ 1/3 page width */}
+      <div className="mx-auto mb-4 w-1/3 border-t border-zinc-800" />
+
+      <div className="mx-auto flex items-center justify-center gap-2 px-4">
+        <span>{theme.name} Explorer &mdash; Powered by PAPI</span>
+        <span className="text-zinc-700">|</span>
+        <span className="flex items-center gap-1">
+          We{" "}
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="#E6007A" className="inline-block">
+            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+          </svg>{" "}
+          Polkadot!
+        </span>
+        <span className="text-zinc-700">|</span>
+        <a
+          href="https://github.com/10igma/polka-xplo/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-zinc-500 hover:text-zinc-200 transition-colors"
+          title="GitHub"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 .3a12 12 0 0 0-3.8 23.38c.6.12.83-.26.83-.57v-2.23c-3.34.73-4.04-1.42-4.04-1.42a3.18 3.18 0 0 0-1.34-1.76c-1.08-.74.09-.73.09-.73a2.52 2.52 0 0 1 1.84 1.24 2.56 2.56 0 0 0 3.5 1 2.56 2.56 0 0 1 .76-1.6c-2.67-.3-5.47-1.34-5.47-5.93a4.64 4.64 0 0 1 1.24-3.22 4.3 4.3 0 0 1 .12-3.18s1-.32 3.3 1.23a11.38 11.38 0 0 1 6 0c2.3-1.55 3.3-1.23 3.3-1.23a4.3 4.3 0 0 1 .12 3.18 4.64 4.64 0 0 1 1.24 3.22c0 4.61-2.8 5.63-5.48 5.92a2.87 2.87 0 0 1 .82 2.23v3.29c0 .31.22.69.83.57A12 12 0 0 0 12 .3" />
+          </svg>
+        </a>
+      </div>
     </footer>
   );
 }
