@@ -2,6 +2,18 @@
 
 This guide gets you running a Polka-Xplo explorer instance. The examples use [Ajuna Network](https://ajuna.io/) (a Polkadot parachain), but the same steps work for **any Substrate chain** — just swap the RPC endpoint and chain ID.
 
+## What You Get
+
+Once running, the explorer provides:
+
+- **Block, extrinsic, and event browsing** with full decoding via runtime metadata
+- **Account pages** with balance breakdown, extrinsic history, transfers, asset transfers, and XCM activity (tabbed view)
+- **Chain activity chart** on the homepage showing extrinsics, transfers, events, and blocks over time
+- **Cross-chain (XCM) tracking** — messages, value transfers, and channel statistics (when the `ext-xcm` extension is active)
+- **Asset tracking** — balances and transfer history for fungible assets
+- **REST API** with interactive Swagger docs at `/api-docs`
+- **Live updates** via WebSocket subscriptions
+
 ## Option A: Docker (Recommended)
 
 Zero local tooling needed — just Docker and Docker Compose.

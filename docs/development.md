@@ -66,7 +66,7 @@ The frontend runs on `http://localhost:3000` and the API on `http://localhost:30
 | `packages/db`      | Database client, queries, migrate  |
 | `packages/indexer` | Block processor, REST API, plugins |
 | `packages/web`     | Next.js frontend                   |
-| `extensions/`      | Optional chain-specific plugins    |
+| `extensions/*`     | Chain-specific plugins (staking, assets, governance, XCM) |
 
 Build order: `shared` → `db` → `indexer` / `web`.
 
@@ -139,6 +139,20 @@ describe("myModule", () => {
 ```
 
 Place test files in `__tests__/` alongside the source they test. Vitest is configured at the root level.
+
+---
+
+## Key Dependencies
+
+| Package | Used In | Purpose |
+| ------- | ------- | ------- |
+| `polkadot-api` (PAPI) | indexer | Type-safe Substrate chain interaction |
+| `express` | indexer | REST API server |
+| `pg` | db | PostgreSQL client |
+| `bullmq` / `ioredis` | indexer | Redis job queue |
+| `recharts` | web | Interactive chart visualizations (activity chart) |
+| `next` / `react` | web | Frontend framework |
+| `tailwindcss` | web | Utility-first CSS |
 
 ---
 

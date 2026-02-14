@@ -68,6 +68,7 @@ polka-xplo/
 ├── extensions/
 │   ├── ext-assets/       # Asset pallet extension
 │   ├── ext-governance/   # Governance pallet extension
+│   ├── ext-xcm/          # XCM cross-chain messaging extension
 │   └── pallet-staking/   # Reference staking extension
 ├── chain-config.json     # Multi-chain configuration
 ├── docker-compose.yml    # Full stack deployment
@@ -95,7 +96,7 @@ db     ← extensions/*
 | Language   | TypeScript 5.7+ (strict mode, ESM)                 |
 | Chain API  | Polkadot-API (PAPI) v1.8+                          |
 | Backend    | Node.js 20+, Express                               |
-| Frontend   | Next.js 15 (App Router), React 19, Tailwind CSS 3  |
+| Frontend   | Next.js 15 (App Router), React 19, Tailwind CSS 3, Recharts |
 | Database   | PostgreSQL 16 (JSONB + GIN indexes)                |
 | Queue      | Redis 7                                            |
 | Testing    | Vitest                                             |
@@ -173,6 +174,29 @@ indexer_state (chain_id PK, last_finalized_block, last_best_block, state)
 extension_migrations (extension_id + version PK, applied_at)
 ```
 
+### Extension Tables
+
+Extensions create their own tables via SQL migrations:
+
+```
+assets (asset_id PK, owner, symbol, name, decimals, ...)
+asset_transfers (id PK, block_height, asset_id, from_address, to_address, amount)
+
+staking_rewards / staking_slashes / staking_bonds / staking_stats
+
+xcm_messages (id PK, message_hash, message_id, direction, protocol,
+              origin_para_id, dest_para_id, sender, success,
+              block_height, extrinsic_id)
+    │
+    └── xcm_transfers (id PK, xcm_message_id FK, direction,
+                       from_chain_id, to_chain_id,
+                       from_address, to_address,
+                       asset_id, asset_symbol, amount,
+                       block_height, extrinsic_id)
+
+xcm_channels (from_para_id, to_para_id, message_count, transfer_count, ...)
+```
+
 ### Key Design Decisions
 
 - **JSONB for extensibility** — `args` (extrinsics) and `data` (events) store decoded pallet data as JSONB. GIN indexes enable efficient queries like `args->>'dest' = '0x...'`.
@@ -197,6 +221,21 @@ Two client-side React contexts wrap the app:
 
 - **SS58Provider** — Manages the user's preferred SS58 address prefix for display
 - **ThemeProvider** — Applies chain-specific branding (colors, token symbol, name)
+
+### Account Detail View
+
+The account detail page uses a three-panel server-rendered overview (identity, stats, native balance) with a standalone asset balances card. Below that, an `AccountActivity` client component provides four lazy-loaded tabs:
+
+- **Extrinsics** — Recent extrinsics by the account (server-side passed)
+- **Transfers** — Native token transfers (sender/receiver)
+- **Assets** — Asset transfer history with symbol, amount, and counterparty
+- **XCM** — Cross-chain message and transfer history
+
+Each tab loads data on demand via the REST API and supports pagination.
+
+### Activity Chart
+
+The homepage features an interactive `ActivityChart` component (powered by **Recharts**) that visualizes chain activity over time. Users can switch between four time periods (Hourly, Daily, Weekly, Monthly) and toggle four metrics (Extrinsics, Transfers, Events, Blocks). Data is fetched from `/api/stats/activity`.
 
 ### Extension UI
 

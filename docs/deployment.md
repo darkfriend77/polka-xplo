@@ -231,6 +231,14 @@ curl http://localhost:3001/api/indexer-status
 
 Returns blocks/minute, blocks/hour, ETA, error count, memory usage, and database size.
 
+### Extension Status
+
+```bash
+curl http://localhost:3001/api/extensions
+```
+
+Returns the list of active extensions (staking, assets, governance, XCM, etc.) with their manifests. If an extension isn't listed, its `manifest.json` may be missing or malformed.
+
 ### Docker Logs
 
 ```bash

@@ -151,6 +151,36 @@ The `useLiveBalance` hook subscribes via Polkadot-API (PAPI). If the RPC endpoin
 
 ---
 
+## XCM Issues
+
+### XCM tab shows no data for an account
+
+**Possible causes:**
+
+1. **Address format mismatch** — The XCM tables store addresses as hex public keys. If the API receives an SS58 address that can't be decoded, the query finds no matches. Verify the address is valid on the target chain.
+2. **Extension not active** — The `ext-xcm` extension must be listed in `/extensions/` with a valid `manifest.json`. Check `GET /api/extensions` to confirm it's loaded.
+3. **No XCM activity** — The account may simply have no cross-chain messages. Verify on a relay chain explorer (e.g., Subscan).
+
+### XCM transfers page shows empty or missing assets
+
+1. **Asset filter applied** — The asset symbol filter drop-down may be filtering results. Clear the filter to see all transfers.
+2. **Tables not created** — If the indexer started without the XCM extension, the tables won't exist. Restart the indexer after adding the extension to `/extensions/`.
+3. **Parachain not sending XCM** — Not all parachains actively use XCM. Verify the chain has HRMP/DMP/UMP activity.
+
+---
+
+## Activity Chart Issues
+
+### Chart shows "No activity data" or empty
+
+**Possible causes:**
+
+1. **Indexer not synced** — The chart queries the `blocks` table. If the indexer hasn't synced enough blocks, there's no data to aggregate. Check sync progress via `GET /api/indexer-status`.
+2. **API unreachable** — The chart fetches from `/api/stats/activity`. Ensure the indexer API is running and accessible (check browser devtools for network errors).
+3. **Period mismatch** — If the chain is very new and you select "Monthly", there may be only one bucket. Try "Hourly" for more granular data.
+
+---
+
 ## Common Errors
 
 | Error                                        | Cause                              | Fix                                       |

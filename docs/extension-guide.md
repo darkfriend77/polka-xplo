@@ -185,6 +185,50 @@ The `pallet-staking` extension ships as a complete working example.
 
 ---
 
+## Reference Extension: XCM
+
+The `ext-xcm` extension is a more advanced example that demonstrates multi-table schemas, multi-endpoint APIs, dedicated web pages, and cross-table joins.
+
+### Handled Events
+
+The manifest covers events from multiple pallets involved in cross-chain messaging:
+
+`PolkadotXcm.Sent`, `PolkadotXcm.Attempted`, `PolkadotXcm.FeesPaid`, `XcmpQueue.XcmpMessageSent`, `XTokens.TransferredAssets`, `MessageQueue.Processed`, `ParachainSystem.UpwardMessageSent`, `ParachainSystem.DownwardMessagesReceived`, `CumulusXcm.ExecutedDownward`, and more.
+
+### Custom Tables
+
+- **`xcm_messages`** — Every inbound/outbound XCM message with direction, protocol (UMP/DMP/HRMP/XCMP), origin/dest para IDs, sender, and success status.
+- **`xcm_transfers`** — Value transfers extracted from XCM messages, linking to the parent message. Includes from/to chain IDs, addresses, asset symbol and amount.
+- **`xcm_channels`** — Aggregated channel statistics between parachain pairs with message and transfer counts.
+
+### API Endpoints
+
+The extension contributes five REST endpoints:
+
+| Endpoint                                 | Description                                    |
+| ---------------------------------------- | ---------------------------------------------- |
+| `GET /api/xcm/messages`                  | Paginated messages with direction/protocol filters |
+| `GET /api/xcm/transfers`                 | Paginated transfers with asset/address filters |
+| `GET /api/xcm/channels`                  | List all observed channels                     |
+| `GET /api/xcm/channels/:from-:to`        | Channel detail with recent activity            |
+| `GET /api/xcm/summary`                   | Aggregate XCM statistics                       |
+
+### Frontend Pages
+
+The web app includes dedicated XCM pages:
+
+- **XCM Transfers** (`/transfers/xcm`) — Filterable table with asset symbol selector and direction filter.
+- **Account XCM Tab** — The account detail view includes an XCM tab showing cross-chain activity for that account.
+
+### Key Design Patterns
+
+- **Multi-pallet event handling:** A single extension handles events from `PolkadotXcm`, `XcmpQueue`, `XTokens`, `MessageQueue`, `ParachainSystem`, and `CumulusXcm`.
+- **Address normalization:** SS58 addresses are converted to hex public keys during indexing, enabling reliable cross-format lookups.
+- **Graceful degradation:** All API endpoints return empty results if the XCM tables don't exist (extension not active), rather than throwing errors.
+- **Multilocation parsing:** The event handler parses XCM V2, V3, and V4 multilocation formats to extract asset IDs, amounts, and destination chains.
+
+---
+
 ## Extension API
 
 ### Handler Signatures

@@ -147,6 +147,41 @@ Paginated, ranked list of accounts with balances and extrinsic counts.
 
 Account details including identity, balance breakdown (free, reserved, frozen), and recent extrinsics. Accepts SS58 addresses of any prefix or hex public keys.
 
+### `GET /api/accounts/:address/asset-transfers`
+
+Asset transfer history for an account. Returns all `asset_transfers` rows where the account is sender or receiver, joined with the `assets` table for symbol/name/decimals.
+
+| Parameter | Type   | Default | Description                |
+| --------- | ------ | ------- | -------------------------- |
+| `limit`   | number | 25      | Results per page (max 100) |
+| `offset`  | number | 0       | Offset for pagination      |
+
+> **Address normalization:** The endpoint accepts SS58 addresses of any prefix or hex public keys. Internally, addresses are normalized to hex for matching against the database.
+
+Response shape:
+
+```json
+{
+  "data": [
+    {
+      "id": 1,
+      "block_height": 8200000,
+      "asset_id": "42",
+      "from_address": "0x...",
+      "to_address": "0x...",
+      "amount": "1000000000000",
+      "symbol": "USDt",
+      "asset_name": "Tether USD",
+      "decimals": 6
+    }
+  ],
+  "total": 150,
+  "page": 1,
+  "pageSize": 25,
+  "hasMore": true
+}
+```
+
 ---
 
 ## Digest Logs
@@ -193,6 +228,104 @@ Smart search with heuristic input detection:
 ### `GET /api/extensions`
 
 Returns the list of all registered extension manifests.
+
+---
+
+## Statistics
+
+### `GET /api/stats`
+
+Aggregate chain statistics for the homepage (latest block, finalized block, signed extrinsics, transfers, total accounts, existential deposit, token decimals, parachain ID).
+
+### `GET /api/stats/activity`
+
+Time-series chain activity data for visualization. Aggregates extrinsics, events, blocks, and transfers into time buckets.
+
+| Parameter | Type   | Default | Description                                |
+| --------- | ------ | ------- | ------------------------------------------ |
+| `period`  | string | `day`   | Bucket size: `hour`, `day`, `week`, `month` |
+| `limit`   | number | 30      | Number of buckets to return (max 365)      |
+
+Response shape:
+
+```json
+{
+  "period": "day",
+  "count": 30,
+  "data": [
+    {
+      "timestamp": 1707580800000,
+      "label": "2024-02-10T00:00:00.000Z",
+      "extrinsics": 1250,
+      "events": 4300,
+      "blocks": 1440,
+      "transfers": 85
+    }
+  ]
+}
+```
+
+---
+
+## XCM (Cross-Consensus Messaging)
+
+These endpoints are available when the `ext-xcm` extension is active.
+
+### `GET /api/xcm/messages`
+
+Paginated list of XCM messages (inbound and outbound).
+
+| Parameter   | Type    | Default | Description                                         |
+| ----------- | ------- | ------- | --------------------------------------------------- |
+| `limit`     | number  | 25      | Results per page (max 100)                          |
+| `offset`    | number  | 0       | Offset for pagination                               |
+| `direction` | string  | —       | Filter: `inbound` or `outbound`                     |
+| `protocol`  | string  | —       | Filter: `UMP`, `DMP`, `HRMP`, `XCMP`                |
+| `chain_id`  | number  | —       | Filter by para ID (matches origin or destination)   |
+
+### `GET /api/xcm/transfers`
+
+Paginated list of XCM value transfers with asset details.
+
+| Parameter   | Type   | Default | Description                                        |
+| ----------- | ------ | ------- | -------------------------------------------------- |
+| `limit`     | number | 25      | Results per page (max 100)                         |
+| `offset`    | number | 0       | Offset for pagination                              |
+| `direction` | string | —       | Filter: `inbound` or `outbound`                    |
+| `asset`     | string | —       | Filter by asset symbol (e.g. `AJUN`, `DOT`, `USDt`) |
+| `from_chain`| number | —       | Filter by source parachain ID                      |
+| `to_chain`  | number | —       | Filter by destination parachain ID                 |
+| `address`   | string | —       | Filter by sender or receiver (SS58 or hex)         |
+
+> **Address normalization:** SS58 addresses are automatically converted to hex public keys for matching. Both SS58 and hex formats are accepted.
+
+### `GET /api/xcm/channels`
+
+List of all observed XCM channels with message and transfer counts.
+
+### `GET /api/xcm/channels/:fromParaId-:toParaId`
+
+Details for a specific channel identified by the `fromParaId-toParaId` pair. Includes the channel record, recent messages, and recent transfers.
+
+### `GET /api/xcm/summary`
+
+XCM overview statistics: total messages by direction/protocol, total transfers by direction with distinct asset counts, and channel count.
+
+Response shape:
+
+```json
+{
+  "messages": {
+    "inbound": { "UMP": 120 },
+    "outbound": { "DMP": 45, "HRMP": 30 }
+  },
+  "transfers": {
+    "inbound": { "count": 95, "assets": 3 },
+    "outbound": { "count": 80, "assets": 2 }
+  },
+  "channelCount": 5
+}
+```
 
 ---
 

@@ -2,7 +2,18 @@
 
 A modular, metadata-driven blockchain explorer for the Polkadot ecosystem. Built on [Polkadot-API (PAPI)](https://papi.how/) for type-safe, light-client-ready chain interaction.
 
-Polka-Xplo ingests, indexes, and serves blockchain data (blocks, extrinsics, events, accounts, balances) through a plugin-first architecture that adapts dynamically to runtime upgrades and custom pallet extensions.
+Polka-Xplo ingests, indexes, and serves blockchain data (blocks, extrinsics, events, accounts, balances, XCM messages) through a plugin-first architecture that adapts dynamically to runtime upgrades and custom pallet extensions.
+
+## Features
+
+- **Full chain indexing** — Blocks, extrinsics, events, accounts, balances with automatic backfill and live sync
+- **Extension system** — Plug-in pallet-specific logic (staking, governance, assets, XCM) without touching the core
+- **XCM cross-chain tracking** — Inbound/outbound messages, value transfers, and channel statistics with asset filtering
+- **Chain activity chart** — Interactive homepage visualization of extrinsics, transfers, events, and blocks over time
+- **Account detail tabs** — Extrinsics, transfers, asset transfers, and XCM activity in one view
+- **Multi-chain support** — Index any Substrate chain by swapping the RPC endpoint and chain config
+- **Runtime metadata driven** — Auto-adapts to runtime upgrades via PAPI V14 metadata
+- **Interactive API docs** — Swagger UI at `/api-docs`
 
 ## Quick Start
 
@@ -37,7 +48,7 @@ Open **http://localhost:3000** — the explorer is live.
 ## Tech Stack
 
 - **Indexer:** Node.js 20, Polkadot-API (PAPI), PostgreSQL 16, Redis 7 (BullMQ)
-- **Frontend:** Next.js 15, React 19, Tailwind CSS 3
+- **Frontend:** Next.js 15, React 19, Tailwind CSS 3, Recharts
 - **Tooling:** TypeScript (strict), Turborepo, Vitest, ESLint, Prettier
 - **Deployment:** Docker Compose
 
@@ -50,7 +61,10 @@ packages/
   indexer/    # Block processor, REST API, extension loader
   web/        # Next.js frontend
 extensions/
-  pallet-staking/   # Reference extension (Ajuna staking)
+  ext-assets/       # Asset pallet (balances, transfers)
+  ext-governance/   # Governance proposals & voting
+  ext-xcm/          # XCM cross-chain messages & transfers
+  pallet-staking/   # Staking rewards, bonds, slashes
 ```
 
 ## License
