@@ -6,6 +6,10 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+/** Allowed governance table names — prevents SQL injection from string interpolation */
+type GovMotionTable = "gov_council_motions" | "gov_techcomm_proposals";
+type GovVoteTable = "gov_council_votes" | "gov_techcomm_votes";
+
 /**
  * Governance Extension — Event Handler
  *
@@ -201,7 +205,7 @@ async function handleDemocracyVoted(ctx: BlockContext, event: ExplorerEvent): Pr
 async function handleCollectiveProposed(
   ctx: BlockContext,
   event: ExplorerEvent,
-  table: string,
+  table: GovMotionTable,
 ): Promise<void> {
   const proposalIndex = Number(event.data.proposal_index ?? 0);
   const proposalHash = String(event.data.proposal_hash ?? "");
@@ -223,8 +227,8 @@ async function handleCollectiveProposed(
 async function handleCollectiveVoted(
   ctx: BlockContext,
   event: ExplorerEvent,
-  motionTable: string,
-  voteTable: string,
+  motionTable: GovMotionTable,
+  voteTable: GovVoteTable,
 ): Promise<void> {
   const proposalHash = String(event.data.proposal_hash ?? "");
   const voter = String(event.data.account ?? "");
@@ -248,7 +252,7 @@ async function handleCollectiveVoted(
 
 async function handleCollectiveStatusUpdate(
   event: ExplorerEvent,
-  table: string,
+  table: GovMotionTable,
   status: string,
 ): Promise<void> {
   const proposalHash = String(event.data.proposal_hash ?? "");
@@ -259,7 +263,7 @@ async function handleCollectiveStatusUpdate(
   ]);
 }
 
-async function handleCollectiveClosed(event: ExplorerEvent, table: string): Promise<void> {
+async function handleCollectiveClosed(event: ExplorerEvent, table: GovMotionTable): Promise<void> {
   const proposalHash = String(event.data.proposal_hash ?? "");
   const yesCount = Number(event.data.yes ?? 0);
   const noCount = Number(event.data.no ?? 0);
