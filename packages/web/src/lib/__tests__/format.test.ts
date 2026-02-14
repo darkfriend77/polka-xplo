@@ -35,9 +35,9 @@ describe("formatBalance", () => {
   });
 
   it("handles very large values", () => {
-    // 1,000,000 DOT
+    // 1'000'000 DOT
     const result = formatBalance("10000000000000000", 10, "DOT");
-    expect(result).toBe("1000000 DOT");
+    expect(result).toBe("1'000'000 DOT");
   });
 
   it("falls back to raw planck on invalid BigInt input", () => {
@@ -55,8 +55,8 @@ describe("formatBalance", () => {
 // ---------------------------------------------------------------------------
 
 describe("formatNumber", () => {
-  it("formats a number with comma separators", () => {
-    expect(formatNumber(1234567)).toBe("1,234,567");
+  it("formats a number with apostrophe separators", () => {
+    expect(formatNumber(1234567)).toBe("1'234'567");
   });
 
   it("formats zero", () => {
