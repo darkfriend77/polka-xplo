@@ -1013,3 +1013,18 @@ async function upsertChannel(
     [fromPara, toPara, blockHeight],
   );
 }
+
+// ============================================================
+// Exported for testing — pure parsing / decoding utilities
+// ============================================================
+export {
+  decodeCompactU32,
+  scaleCompactLen,
+  networkFieldLen,
+  splitHexJunctions,
+  resolveJunctions,
+  extractAccountFromMultilocation,
+  extractParaIdFromMultilocation,
+  parseJunctionAccount,
+  parseJunctionParaId,
+};
