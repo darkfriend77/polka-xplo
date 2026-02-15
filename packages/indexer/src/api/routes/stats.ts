@@ -5,11 +5,18 @@ import { getExistentialDeposit } from "../../runtime-parser.js";
 import { getSystemProperties, getParachainId } from "../../chain-state.js";
 
 // ---- Activity endpoint cache ----
-interface ActivityCacheEntry {
+interface CacheEntry {
   data: unknown;
   expiresAt: number;
 }
-const activityCache = new Map<string, ActivityCacheEntry>();
+const activityCache = new Map<string, CacheEntry>();
+
+// ---- Stats endpoint cache ----
+// The /api/stats response is cached with a short TTL and proactively
+// refreshed in the background so no user request ever hits a cold cache.
+const STATS_TTL_MS = 60_000; // 60 seconds
+let statsCache: CacheEntry | null = null;
+let statsRefreshTimer: ReturnType<typeof setInterval> | null = null;
 /** Cache TTL per period: hourly data changes faster, monthly rarely */
 const ACTIVITY_TTL: Record<string, number> = {
   hour: 60_000,     // 1 minute
@@ -62,23 +69,51 @@ export function register(app: Express, ctx: ApiContext): void {
    *                   nullable: true
    *                   description: Parachain ID (from ParachainInfo pallet, null for relay chains)
    */
+  // --- Helper: build the stats response ---
+  async function buildStatsResponse() {
+    const [stats, chainProps] = await Promise.all([
+      getChainStats(),
+      ctx.rpcPool
+        ? Promise.all([
+            getExistentialDeposit(ctx.rpcPool),
+            getSystemProperties(ctx.rpcPool),
+            getParachainId(ctx.rpcPool),
+          ]).then(([ed, props, paraId]) => ({
+            existentialDeposit: ed,
+            tokenDecimals: props.tokenDecimals,
+            paraId,
+          }))
+        : Promise.resolve({ existentialDeposit: "0", tokenDecimals: 10, paraId: null }),
+    ]);
+    return { ...stats, ...chainProps };
+  }
+
+  // --- Background refresh: warm the cache every 6s so users never wait ---
+  async function refreshStatsCache() {
+    try {
+      const data = await buildStatsResponse();
+      statsCache = { data, expiresAt: Date.now() + STATS_TTL_MS };
+    } catch {
+      // Keep stale cache on error rather than clearing it
+    }
+  }
+  // Start background refresh immediately and repeat every 6s
+  refreshStatsCache();
+  statsRefreshTimer = setInterval(refreshStatsCache, STATS_TTL_MS);
+  // Ensure timer doesn't keep the process alive
+  if (statsRefreshTimer.unref) statsRefreshTimer.unref();
+
   app.get("/api/stats", async (_req, res) => {
     try {
-      const [stats, chainProps] = await Promise.all([
-        getChainStats(),
-        ctx.rpcPool
-          ? Promise.all([
-              getExistentialDeposit(ctx.rpcPool),
-              getSystemProperties(ctx.rpcPool),
-              getParachainId(ctx.rpcPool),
-            ]).then(([ed, props, paraId]) => ({
-              existentialDeposit: ed,
-              tokenDecimals: props.tokenDecimals,
-              paraId,
-            }))
-          : Promise.resolve({ existentialDeposit: "0", tokenDecimals: 10, paraId: null }),
-      ]);
-      res.json({ ...stats, ...chainProps });
+      // Serve from cache if available (even if slightly stale — background refresh keeps it fresh)
+      if (statsCache?.data) {
+        res.json(statsCache.data);
+        return;
+      }
+      // Fallback: build synchronously on first request if background hasn't finished yet
+      const data = await buildStatsResponse();
+      statsCache = { data, expiresAt: Date.now() + STATS_TTL_MS };
+      res.json(data);
     } catch {
       res.status(500).json({ error: "Failed to fetch stats" });
     }
