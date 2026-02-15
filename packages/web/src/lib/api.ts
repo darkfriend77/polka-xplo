@@ -392,7 +392,7 @@ export interface LatencyStats {
 export interface IndexerStatusResponse {
   startedAt: number;
   uptimeSeconds: number;
-  state: "idle" | "syncing" | "live";
+  state: "initializing" | "idle" | "syncing" | "live";
   blocksProcessed: number;
   indexedHeight: number;
   chainTip: number;
@@ -409,6 +409,11 @@ export interface IndexerStatusResponse {
     external: number;
   };
   blockProcessingTime: LatencyStats & { count: number };
+  initInfo?: {
+    elapsedSeconds: number;
+    statsCacheReady: boolean;
+    chainPropsReady: boolean;
+  };
   database: {
     totalSize: string;
     tables: { name: string; rows: number; size: string }[];

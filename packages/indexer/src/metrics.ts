@@ -13,8 +13,8 @@ export interface MetricsSnapshot {
   startedAt: number;
   /** Current uptime in seconds */
   uptimeSeconds: number;
-  /** Pipeline state: idle | syncing | live */
-  state: "idle" | "syncing" | "live";
+  /** Pipeline state: initializing | idle | syncing | live */
+  state: "initializing" | "idle" | "syncing" | "live";
   /** Total blocks processed since start */
   blocksProcessed: number;
   /** Current indexed height */
@@ -48,6 +48,12 @@ export interface MetricsSnapshot {
     max: number;
     count: number;
   };
+  /** Warm-up info (present only during initializing state) */
+  initInfo?: {
+    elapsedSeconds: number;
+    statsCacheReady: boolean;
+    chainPropsReady: boolean;
+  };
 }
 
 const WINDOW_SIZE = 7200; // keep last 2 hours of block timestamps
@@ -56,11 +62,19 @@ const BLOCK_TIME_WINDOW = 1000; // keep last 1000 block processing times
 
 class IndexerMetrics {
   private startedAt = Date.now();
-  private state: "idle" | "syncing" | "live" = "idle";
+  private state: "initializing" | "idle" | "syncing" | "live" = "initializing";
   private blocksProcessed = 0;
   private indexedHeight = 0;
   private chainTip = 0;
   private errorCount = 0;
+
+  /** Warm-up readiness flags — all must be true before leaving "initializing" */
+  private _warmup = {
+    statsCacheReady: false,
+    chainPropsReady: false,
+  };
+  /** Time when initializing finished (null = still initializing) */
+  private _initDoneAt: number | null = null;
 
   /** Ring buffer of block processing timestamps (for rate calculation) */
   private blockTimestamps: number[] = [];
@@ -93,8 +107,38 @@ class IndexerMetrics {
   }
 
   /** Update the pipeline state */
-  setState(state: "idle" | "syncing" | "live"): void {
+  setState(state: "initializing" | "idle" | "syncing" | "live"): void {
+    // During warm-up, remember the desired state but stay in "initializing"
+    if (this.state === "initializing" && state !== "initializing") {
+      this._pendingState = state;
+      return;
+    }
     this.state = state;
+  }
+
+  /** Pending pipeline state to apply after init completes */
+  private _pendingState: "idle" | "syncing" | "live" | null = null;
+
+  /** Mark a warm-up component as ready. When all are ready, transition out of "initializing". */
+  markReady(component: "statsCacheReady" | "chainPropsReady"): void {
+    this._warmup[component] = true;
+    if (this._warmup.statsCacheReady && this._warmup.chainPropsReady && this.state === "initializing") {
+      this._initDoneAt = Date.now();
+      // Apply the pending pipeline state, or fall back to idle
+      this.state = this._pendingState ?? "idle";
+      this._pendingState = null;
+    }
+  }
+
+  /** Whether the indexer is still warming up after a restart */
+  get isInitializing(): boolean {
+    return this.state === "initializing";
+  }
+
+  /** How long the warm-up has been running in seconds (null if already done) */
+  get initElapsedSeconds(): number | null {
+    if (this.state !== "initializing") return null;
+    return Math.floor((Date.now() - this.startedAt) / 1000);
   }
 
   /** Update the known chain tip (always accept latest, tip can decrease on reorgs) */
@@ -160,6 +204,15 @@ class IndexerMetrics {
         external: mem.external,
       },
       blockProcessingTime: blockTimePercentiles(this.blockProcessingTimes),
+      ...(this.state === "initializing"
+        ? {
+            initInfo: {
+              elapsedSeconds: Math.floor((now - this.startedAt) / 1000),
+              statsCacheReady: this._warmup.statsCacheReady,
+              chainPropsReady: this._warmup.chainPropsReady,
+            },
+          }
+        : {}),
     };
   }
 }

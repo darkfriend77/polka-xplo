@@ -3,6 +3,7 @@ import type { ApiContext } from "../types.js";
 import { getChainStats, query } from "@polka-xplo/db";
 import { getExistentialDeposit } from "../../runtime-parser.js";
 import { getSystemProperties, getParachainId } from "../../chain-state.js";
+import { metrics } from "../../metrics.js";
 
 // ---- Activity endpoint cache ----
 interface CacheEntry {
@@ -106,10 +107,14 @@ export function register(app: Express, ctx: ApiContext): void {
           tokenDecimals: props.tokenDecimals,
           paraId,
         };
+        metrics.markReady("chainPropsReady");
       })
       .catch(() => {
         // Will retry on next buildStatsResponse call
       });
+  } else {
+    // No RPC pool — chain props will stay at defaults, mark as ready
+    metrics.markReady("chainPropsReady");
   }
 
   // --- Helper: build the stats response ---
@@ -129,6 +134,7 @@ export function register(app: Express, ctx: ApiContext): void {
           tokenDecimals: props.tokenDecimals,
           paraId,
         };
+        metrics.markReady("chainPropsReady");
       } catch {
         // Use defaults until RPC is available
       }
@@ -137,11 +143,12 @@ export function register(app: Express, ctx: ApiContext): void {
     return { ...stats, ...(chainPropsCache ?? defaultChainProps) };
   }
 
-  // --- Background refresh: warm the cache every 6s so users never wait ---
+  // --- Background refresh: warm the cache every 60s so users never wait ---
   async function refreshStatsCache() {
     try {
       const data = await buildStatsResponse();
       statsCache = { data, expiresAt: Date.now() + STATS_TTL_MS };
+      metrics.markReady("statsCacheReady");
     } catch {
       // Keep stale cache on error rather than clearing it
     }
