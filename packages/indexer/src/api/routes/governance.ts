@@ -1,5 +1,5 @@
 import type { Express } from "express";
-import { query } from "@polka-xplo/db";
+import { query, cachedCount, cachedQuery } from "@polka-xplo/db";
 
 export function register(app: Express): void {
   /**
@@ -34,10 +34,20 @@ export function register(app: Express): void {
       const offset = Number(req.query.offset) || 0;
       const status = req.query.status as string | undefined;
 
-      let sql = `SELECT r.*, (SELECT COUNT(*) FROM gov_democracy_votes v WHERE v.ref_index = r.ref_index) as vote_count,
-                 (SELECT COUNT(*) FROM gov_democracy_votes v WHERE v.ref_index = r.ref_index AND v.is_aye = true) as aye_count,
-                 (SELECT COUNT(*) FROM gov_democracy_votes v WHERE v.ref_index = r.ref_index AND v.is_aye = false) as nay_count
-                 FROM gov_democracy_referenda r`;
+      // Use LEFT JOIN with FILTER instead of correlated subqueries
+      let sql = `SELECT r.*,
+                   COALESCE(v.vote_count, 0) AS vote_count,
+                   COALESCE(v.aye_count, 0) AS aye_count,
+                   COALESCE(v.nay_count, 0) AS nay_count
+                 FROM gov_democracy_referenda r
+                 LEFT JOIN (
+                   SELECT ref_index,
+                          COUNT(*) AS vote_count,
+                          COUNT(*) FILTER (WHERE is_aye = true) AS aye_count,
+                          COUNT(*) FILTER (WHERE is_aye = false) AS nay_count
+                   FROM gov_democracy_votes
+                   GROUP BY ref_index
+                 ) v ON v.ref_index = r.ref_index`;
       const params: unknown[] = [];
 
       if (status) {
@@ -51,13 +61,17 @@ export function register(app: Express): void {
       params.push(offset);
       sql += ` OFFSET $${params.length}`;
 
-      const result = await query(sql, params);
-
-      const countSql = status
-        ? `SELECT COUNT(*) FROM gov_democracy_referenda WHERE status = $1`
-        : `SELECT COUNT(*) FROM gov_democracy_referenda`;
-      const countResult = await query(countSql, status ? [status] : []);
-      const total = Number(countResult.rows[0]?.count ?? 0);
+      const cacheKey = status ? `gov_referenda:${status}` : "gov_referenda";
+      const [result, total] = await Promise.all([
+        query(sql, params),
+        cachedCount(
+          cacheKey,
+          status
+            ? `SELECT COUNT(*) FROM gov_democracy_referenda WHERE status = $1`
+            : `SELECT COUNT(*) FROM gov_democracy_referenda`,
+          status ? [status] : [],
+        ),
+      ]);
 
       res.json({ data: result.rows, total });
     } catch (err) {
@@ -95,11 +109,16 @@ export function register(app: Express): void {
       }
 
       const votes = await query(
-        `SELECT * FROM gov_democracy_votes WHERE ref_index = $1 ORDER BY block_height DESC`,
+        `SELECT * FROM gov_democracy_votes WHERE ref_index = $1 ORDER BY block_height DESC LIMIT 500`,
         [refIndex],
       );
 
-      res.json({ referendum: refResult.rows[0], votes: votes.rows });
+      const countRes = await query(
+        `SELECT COUNT(*) FROM gov_democracy_votes WHERE ref_index = $1`,
+        [refIndex],
+      );
+
+      res.json({ referendum: refResult.rows[0], votes: votes.rows, totalVotes: Number(countRes.rows[0]?.count ?? 0) });
     } catch (err) {
       res.status(500).json({ error: "Failed to fetch referendum", detail: String(err) });
     }
@@ -151,13 +170,17 @@ export function register(app: Express): void {
       params.push(offset);
       sql += ` OFFSET $${params.length}`;
 
-      const result = await query(sql, params);
-
-      const countSql = status
-        ? `SELECT COUNT(*) FROM gov_democracy_proposals WHERE status = $1`
-        : `SELECT COUNT(*) FROM gov_democracy_proposals`;
-      const countResult = await query(countSql, status ? [status] : []);
-      const total = Number(countResult.rows[0]?.count ?? 0);
+      const cacheKey = status ? `gov_proposals:${status}` : "gov_proposals";
+      const [result, total] = await Promise.all([
+        query(sql, params),
+        cachedCount(
+          cacheKey,
+          status
+            ? `SELECT COUNT(*) FROM gov_democracy_proposals WHERE status = $1`
+            : `SELECT COUNT(*) FROM gov_democracy_proposals`,
+          status ? [status] : [],
+        ),
+      ]);
 
       res.json({ data: result.rows, total });
     } catch (err) {
@@ -211,13 +234,17 @@ export function register(app: Express): void {
       params.push(offset);
       sql += ` OFFSET $${params.length}`;
 
-      const result = await query(sql, params);
-
-      const countSql = status
-        ? `SELECT COUNT(*) FROM gov_council_motions WHERE status = $1`
-        : `SELECT COUNT(*) FROM gov_council_motions`;
-      const countResult = await query(countSql, status ? [status] : []);
-      const total = Number(countResult.rows[0]?.count ?? 0);
+      const cacheKey = status ? `gov_council:${status}` : "gov_council";
+      const [result, total] = await Promise.all([
+        query(sql, params),
+        cachedCount(
+          cacheKey,
+          status
+            ? `SELECT COUNT(*) FROM gov_council_motions WHERE status = $1`
+            : `SELECT COUNT(*) FROM gov_council_motions`,
+          status ? [status] : [],
+        ),
+      ]);
 
       res.json({ data: result.rows, total });
     } catch (err) {
@@ -255,7 +282,7 @@ export function register(app: Express): void {
       }
 
       const votes = await query(
-        `SELECT * FROM gov_council_votes WHERE proposal_hash = $1 ORDER BY block_height DESC`,
+        `SELECT * FROM gov_council_votes WHERE proposal_hash = $1 ORDER BY block_height DESC LIMIT 500`,
         [motionResult.rows[0]!.proposal_hash],
       );
 
@@ -311,13 +338,17 @@ export function register(app: Express): void {
       params.push(offset);
       sql += ` OFFSET $${params.length}`;
 
-      const result = await query(sql, params);
-
-      const countSql = status
-        ? `SELECT COUNT(*) FROM gov_techcomm_proposals WHERE status = $1`
-        : `SELECT COUNT(*) FROM gov_techcomm_proposals`;
-      const countResult = await query(countSql, status ? [status] : []);
-      const total = Number(countResult.rows[0]?.count ?? 0);
+      const cacheKey = status ? `gov_techcomm:${status}` : "gov_techcomm";
+      const [result, total] = await Promise.all([
+        query(sql, params),
+        cachedCount(
+          cacheKey,
+          status
+            ? `SELECT COUNT(*) FROM gov_techcomm_proposals WHERE status = $1`
+            : `SELECT COUNT(*) FROM gov_techcomm_proposals`,
+          status ? [status] : [],
+        ),
+      ]);
 
       res.json({ data: result.rows, total });
     } catch (err) {
@@ -355,7 +386,7 @@ export function register(app: Express): void {
       }
 
       const votes = await query(
-        `SELECT * FROM gov_techcomm_votes WHERE proposal_hash = $1 ORDER BY block_height DESC`,
+        `SELECT * FROM gov_techcomm_votes WHERE proposal_hash = $1 ORDER BY block_height DESC LIMIT 500`,
         [propResult.rows[0]!.proposal_hash],
       );
 
@@ -377,22 +408,25 @@ export function register(app: Express): void {
    */
   app.get("/api/governance/summary", async (_req, res) => {
     try {
-      const [referenda, proposals, council, techcomm] = await Promise.all([
-        query(`SELECT status, COUNT(*) as count FROM gov_democracy_referenda GROUP BY status`),
-        query(`SELECT status, COUNT(*) as count FROM gov_democracy_proposals GROUP BY status`),
-        query(`SELECT status, COUNT(*) as count FROM gov_council_motions GROUP BY status`),
-        query(`SELECT status, COUNT(*) as count FROM gov_techcomm_proposals GROUP BY status`),
-      ]);
-
       const toMap = (rows: Record<string, unknown>[]) =>
         Object.fromEntries(rows.map((r) => [String(r.status), Number(r.count)]));
 
-      res.json({
-        referenda: toMap(referenda.rows),
-        proposals: toMap(proposals.rows),
-        council: toMap(council.rows),
-        techcomm: toMap(techcomm.rows),
+      const summary = await cachedQuery("gov_summary", async () => {
+        const [referenda, proposals, council, techcomm] = await Promise.all([
+          query(`SELECT status, COUNT(*) as count FROM gov_democracy_referenda GROUP BY status`),
+          query(`SELECT status, COUNT(*) as count FROM gov_democracy_proposals GROUP BY status`),
+          query(`SELECT status, COUNT(*) as count FROM gov_council_motions GROUP BY status`),
+          query(`SELECT status, COUNT(*) as count FROM gov_techcomm_proposals GROUP BY status`),
+        ]);
+        return {
+          referenda: toMap(referenda.rows),
+          proposals: toMap(proposals.rows),
+          council: toMap(council.rows),
+          techcomm: toMap(techcomm.rows),
+        };
       });
+
+      res.json(summary);
     } catch (err) {
       // Tables may not exist yet if extension hasn't been activated
       res.json({ referenda: {}, proposals: {}, council: {}, techcomm: {} });

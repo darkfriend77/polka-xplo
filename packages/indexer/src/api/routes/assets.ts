@@ -1,5 +1,5 @@
 import type { Express } from "express";
-import { query } from "@polka-xplo/db";
+import { query, cachedCount, cachedQuery } from "@polka-xplo/db";
 
 export function register(app: Express): void {
   /**
@@ -41,13 +41,14 @@ export function register(app: Express): void {
         params.push(status);
       }
 
-      const countRes = await query(`SELECT COUNT(*) FROM assets${where}`, status ? [status] : []);
-      const total = parseInt(String(countRes.rows[0]!.count), 10);
-
-      const rows = await query(
-        `SELECT * FROM assets${where} ORDER BY asset_id ASC LIMIT $1 OFFSET $2`,
-        params,
-      );
+      const cacheKey = status ? `assets:${status}` : "assets";
+      const [rows, total] = await Promise.all([
+        query(
+          `SELECT * FROM assets${where} ORDER BY asset_id ASC LIMIT $1 OFFSET $2`,
+          params,
+        ),
+        cachedCount(cacheKey, `SELECT COUNT(*) FROM assets${where}`, status ? [status] : []),
+      ]);
 
       res.json({
         data: rows.rows,
@@ -57,7 +58,8 @@ export function register(app: Express): void {
         hasMore: offset + limit < total,
       });
     } catch (err) {
-      res.status(500).json({ error: String(err) });
+      console.error("[assets] list error:", err);
+      res.status(500).json({ error: "Failed to fetch assets" });
     }
   });
 
@@ -73,16 +75,20 @@ export function register(app: Express): void {
    */
   app.get("/api/assets/summary", async (req, res) => {
     try {
-      const rows = await query(
-        `SELECT status, COUNT(*) AS count FROM assets GROUP BY status`,
-      );
-      const summary: Record<string, number> = {};
-      for (const r of rows.rows) {
-        summary[String(r.status)] = parseInt(String(r.count), 10);
-      }
+      const summary = await cachedQuery("assets_summary", async () => {
+        const rows = await query(
+          `SELECT status, COUNT(*) AS count FROM assets GROUP BY status`,
+        );
+        const result: Record<string, number> = {};
+        for (const r of rows.rows) {
+          result[String(r.status)] = parseInt(String(r.count), 10);
+        }
+        return result;
+      });
       res.json(summary);
     } catch (err) {
-      res.status(500).json({ error: String(err) });
+      console.error("[assets] summary error:", err);
+      res.status(500).json({ error: "Failed to fetch asset summary" });
     }
   });
 
@@ -127,7 +133,8 @@ export function register(app: Express): void {
         recentTransfers: transfersRes.rows,
       });
     } catch (err) {
-      res.status(500).json({ error: String(err) });
+      console.error("[assets] detail error:", err);
+      res.status(500).json({ error: "Failed to fetch asset" });
     }
   });
 
@@ -168,16 +175,17 @@ export function register(app: Express): void {
       const limit = Math.min(parseInt(String(req.query.limit ?? "25"), 10) || 25, 100);
       const offset = parseInt(String(req.query.offset ?? "0"), 10) || 0;
 
-      const countRes = await query(
-        "SELECT COUNT(*) FROM asset_transfers WHERE asset_id = $1",
-        [assetId],
-      );
+      const [countRes, rows] = await Promise.all([
+        query(
+          "SELECT COUNT(*) FROM asset_transfers WHERE asset_id = $1",
+          [assetId],
+        ),
+        query(
+          `SELECT * FROM asset_transfers WHERE asset_id = $1 ORDER BY block_height DESC LIMIT $2 OFFSET $3`,
+          [assetId, limit, offset],
+        ),
+      ]);
       const total = parseInt(String(countRes.rows[0]!.count), 10);
-
-      const rows = await query(
-        `SELECT * FROM asset_transfers WHERE asset_id = $1 ORDER BY block_height DESC LIMIT $2 OFFSET $3`,
-        [assetId, limit, offset],
-      );
 
       res.json({
         data: rows.rows,
@@ -187,7 +195,8 @@ export function register(app: Express): void {
         hasMore: offset + limit < total,
       });
     } catch (err) {
-      res.status(500).json({ error: String(err) });
+      console.error("[assets] transfers error:", err);
+      res.status(500).json({ error: "Failed to fetch asset transfers" });
     }
   });
 }

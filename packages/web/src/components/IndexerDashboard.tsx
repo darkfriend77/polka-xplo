@@ -480,14 +480,12 @@ function CacheStatusSection({ caches }: { caches: CacheInfo }) {
             Activity Charts
           </h3>
           {caches.activity.map((a) => {
-            // Infer TTL from expiresAt and nextRefreshMs for the bar
-            const totalMs = a.expiresAt - (Date.now() - a.nextRefreshMs + a.nextRefreshMs);
             // We know the TTLs: hour=60s, day=300s, week=600s, month=1800s
             const ttlLookup: Record<string, number> = {
               hour: 60_000, day: 300_000, week: 600_000, month: 1_800_000,
             };
             const period = a.key.split(":")[1] ?? "";
-            const knownTtl = ttlLookup[period] ?? totalMs;
+            const knownTtl = ttlLookup[period] ?? a.nextRefreshMs;
             return (
               <CacheCountdownBar
                 key={a.key}

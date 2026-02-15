@@ -40,7 +40,7 @@ export function getQueryCacheStatus(): { key: string; expiresAt: number; ttlMs: 
  * Execute a COUNT query with TTL-based caching.
  * The `cacheKey` must uniquely identify the query+params combination.
  */
-async function cachedCount(
+export async function cachedCount(
   cacheKey: string,
   sql: string,
   params: unknown[] = [],
@@ -81,7 +81,7 @@ async function estimatedRowCount(tableName: string): Promise<number> {
  * Cache an arbitrary query result with TTL.
  * Used for expensive queries like DISTINCT module/event lists.
  */
-async function cachedQuery<T>(
+export async function cachedQuery<T>(
   cacheKey: string,
   fn: () => Promise<T>,
   ttl = SLOW_CACHE_TTL_MS,

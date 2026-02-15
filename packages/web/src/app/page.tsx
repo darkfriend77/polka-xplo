@@ -23,6 +23,7 @@ export const dynamic = "force-dynamic";
 async function ChainStatsSection() {
   let stats: ChainStats | null = null;
   let specVersion: number | null = null;
+  let fetchError = false;
 
   try {
     const [statsRes, specRes] = await Promise.all([
@@ -30,10 +31,12 @@ async function ChainStatsSection() {
       getSpecVersions().catch(() => ({ versions: [] })),
     ]);
     stats = statsRes;
-    if (specRes.versions.length > 0) {
-      specVersion = specRes.versions[0]!.specVersion;
-    }
+    specVersion = specRes.versions.length > 0 ? specRes.versions[0]!.specVersion : null;
   } catch {
+    fetchError = true;
+  }
+
+  if (fetchError) {
     return (
       <div className="rounded-lg border border-yellow-800/50 bg-yellow-950/30 p-3 text-sm text-yellow-300">
         Unable to connect to the indexer. Is the backend running?

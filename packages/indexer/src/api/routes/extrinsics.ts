@@ -127,9 +127,11 @@ export function register(app: Express): void {
         return;
       }
 
-      // Fetch block for timestamp
-      const block = await getBlockByHeight(extrinsic.blockHeight);
-      const events = await getEventsByExtrinsic(extrinsic.id);
+      // Fetch block and events in parallel
+      const [block, events] = await Promise.all([
+        getBlockByHeight(extrinsic.blockHeight),
+        getEventsByExtrinsic(extrinsic.id),
+      ]);
       res.json({
         extrinsic,
         events,

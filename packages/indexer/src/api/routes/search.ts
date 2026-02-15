@@ -56,6 +56,11 @@ export function register(app: Express): void {
         return;
       }
 
+      if (input.length > 256) {
+        res.status(400).json({ error: "Search query too long" });
+        return;
+      }
+
       const inputType = detectSearchType(input);
       const results = [];
 

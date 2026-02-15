@@ -1,5 +1,5 @@
 import type { Express } from "express";
-import { query } from "@polka-xplo/db";
+import { query, cachedCount, cachedQuery } from "@polka-xplo/db";
 import { normalizeAddress } from "@polka-xplo/shared";
 
 export function register(app: Express): void {
@@ -67,19 +67,22 @@ export function register(app: Express): void {
 
       const where = conditions.length > 0 ? ` WHERE ${conditions.join(" AND ")}` : "";
 
-      const countRes = await query(`SELECT COUNT(*) FROM xcm_messages${where}`, params);
-      const total = parseInt(String(countRes.rows[0]!.count), 10);
+      const cacheKey = `xcm_msgs${where}:${params.join(",")}`;
+      const countPromise = cachedCount(cacheKey, `SELECT COUNT(*) FROM xcm_messages${where}`, [...params]);
 
       params.push(limit, offset);
-      const rows = await query(
-        `SELECT id, message_hash, message_id, direction, protocol,
-                origin_para_id, dest_para_id, sender, success,
-                block_height, extrinsic_id, created_at
-         FROM xcm_messages${where}
-         ORDER BY block_height DESC, id DESC
-         LIMIT $${idx++} OFFSET $${idx++}`,
-        params,
-      );
+      const [total, rows] = await Promise.all([
+        countPromise,
+        query(
+          `SELECT id, message_hash, message_id, direction, protocol,
+                  origin_para_id, dest_para_id, sender, success,
+                  block_height, extrinsic_id, created_at
+           FROM xcm_messages${where}
+           ORDER BY block_height DESC, id DESC
+           LIMIT $${idx++} OFFSET $${idx++}`,
+          params,
+        ),
+      ]);
 
       res.json({
         data: rows.rows,
@@ -181,24 +184,27 @@ export function register(app: Express): void {
 
       const where = conditions.length > 0 ? ` WHERE ${conditions.join(" AND ")}` : "";
 
-      const countRes = await query(`SELECT COUNT(*) FROM xcm_transfers t${where}`, params);
-      const total = parseInt(String(countRes.rows[0]!.count), 10);
+      const cacheKey = `xcm_xfers${where}:${params.join(",")}`;
+      const countPromise = cachedCount(cacheKey, `SELECT COUNT(*) FROM xcm_transfers t${where}`, [...params]);
 
       params.push(limit, offset);
-      const rows = await query(
-        `SELECT t.id, t.xcm_message_id, t.direction,
-                t.from_chain_id, t.to_chain_id,
-                t.from_address, t.to_address,
-                t.asset_id, t.asset_symbol, t.amount,
-                t.block_height, t.extrinsic_id, t.created_at,
-                m.message_hash, m.protocol
-         FROM xcm_transfers t
-         LEFT JOIN xcm_messages m ON m.id = t.xcm_message_id
-         ${where}
-         ORDER BY t.block_height DESC, t.id DESC
-         LIMIT $${idx++} OFFSET $${idx++}`,
-        params,
-      );
+      const [total, rows] = await Promise.all([
+        countPromise,
+        query(
+          `SELECT t.id, t.xcm_message_id, t.direction,
+                  t.from_chain_id, t.to_chain_id,
+                  t.from_address, t.to_address,
+                  t.asset_id, t.asset_symbol, t.amount,
+                  t.block_height, t.extrinsic_id, t.created_at,
+                  m.message_hash, m.protocol
+           FROM xcm_transfers t
+           LEFT JOIN xcm_messages m ON m.id = t.xcm_message_id
+           ${where}
+           ORDER BY t.block_height DESC, t.id DESC
+           LIMIT $${idx++} OFFSET $${idx++}`,
+          params,
+        ),
+      ]);
 
       res.json({
         data: rows.rows,
@@ -231,7 +237,8 @@ export function register(app: Express): void {
     try {
       const rows = await query(
         `SELECT * FROM xcm_channels
-         ORDER BY message_count DESC`,
+         ORDER BY message_count DESC
+         LIMIT 500`,
       );
       res.json({ data: rows.rows });
     } catch (err) {
@@ -335,34 +342,38 @@ export function register(app: Express): void {
    */
   app.get("/api/xcm/summary", async (_req, res) => {
     try {
-      const [msgs, transfers, channels] = await Promise.all([
-        query(`SELECT direction, protocol, COUNT(*) AS count
-               FROM xcm_messages GROUP BY direction, protocol`),
-        query(`SELECT direction, COUNT(*) AS count, COUNT(DISTINCT asset_symbol) AS assets
-               FROM xcm_transfers GROUP BY direction`),
-        query(`SELECT COUNT(*) AS count FROM xcm_channels`),
-      ]);
+      const summary = await cachedQuery("xcm_summary", async () => {
+        const [msgs, transfers, channels] = await Promise.all([
+          query(`SELECT direction, protocol, COUNT(*) AS count
+                 FROM xcm_messages GROUP BY direction, protocol`),
+          query(`SELECT direction, COUNT(*) AS count, COUNT(DISTINCT asset_symbol) AS assets
+                 FROM xcm_transfers GROUP BY direction`),
+          query(`SELECT COUNT(*) AS count FROM xcm_channels`),
+        ]);
 
-      const msgStats: Record<string, Record<string, number>> = {};
-      for (const r of msgs.rows) {
-        const dir = String(r.direction);
-        if (!msgStats[dir]) msgStats[dir] = {};
-        msgStats[dir][String(r.protocol)] = Number(r.count);
-      }
+        const msgStats: Record<string, Record<string, number>> = {};
+        for (const r of msgs.rows) {
+          const dir = String(r.direction);
+          if (!msgStats[dir]) msgStats[dir] = {};
+          msgStats[dir][String(r.protocol)] = Number(r.count);
+        }
 
-      const transferStats: Record<string, { count: number; assets: number }> = {};
-      for (const r of transfers.rows) {
-        transferStats[String(r.direction)] = {
-          count: Number(r.count),
-          assets: Number(r.assets),
+        const transferStats: Record<string, { count: number; assets: number }> = {};
+        for (const r of transfers.rows) {
+          transferStats[String(r.direction)] = {
+            count: Number(r.count),
+            assets: Number(r.assets),
+          };
+        }
+
+        return {
+          messages: msgStats,
+          transfers: transferStats,
+          channelCount: Number(channels.rows[0]?.count ?? 0),
         };
-      }
-
-      res.json({
-        messages: msgStats,
-        transfers: transferStats,
-        channelCount: Number(channels.rows[0]?.count ?? 0),
       });
+
+      res.json(summary);
     } catch (err) {
       const msg = String(err);
       if (msg.includes("does not exist")) {

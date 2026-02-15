@@ -18,10 +18,9 @@ export function createAdminMiddleware(): express.RequestHandler {
       return;
     }
     const provided =
-      req.headers["x-admin-key"] as string | undefined ??
-      req.query["admin_key"] as string | undefined;
+      req.headers["x-admin-key"] as string | undefined;
     if (provided !== adminApiKey) {
-      res.status(401).json({ error: "Unauthorized. Provide X-Admin-Key header or ?admin_key= param." });
+      res.status(401).json({ error: "Unauthorized. Provide X-Admin-Key header." });
       return;
     }
     next();
@@ -69,7 +68,8 @@ export function createCorsMiddleware(): express.RequestHandler {
   const allowedOrigin = process.env.CORS_ORIGIN ?? "*";
   return (_req, res, next) => {
     res.header("Access-Control-Allow-Origin", allowedOrigin);
-    res.header("Access-Control-Allow-Headers", "Content-Type");
+    res.header("Access-Control-Allow-Headers", "Content-Type, X-Admin-Key");
+    res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
     next();
   };
 }
