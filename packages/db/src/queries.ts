@@ -99,6 +99,26 @@ export async function cachedQuery<T>(
 // Block Queries
 // ============================================================
 
+/**
+ * Pre-warm the query cache at startup so the status dashboard
+ * shows cache entries immediately and the first user request is fast.
+ * Runs all core estimated row counts and count queries in parallel.
+ * Errors are silently ignored — the cache will populate lazily on first access.
+ */
+export async function warmQueryCache(): Promise<void> {
+  try {
+    await Promise.allSettled([
+      estimatedRowCount("blocks"),
+      estimatedRowCount("extrinsics"),
+      estimatedRowCount("events"),
+      cachedCount("accounts", "SELECT COUNT(*) AS count FROM accounts"),
+      cachedCount("transfers", "SELECT COUNT(*) AS count FROM events WHERE module = 'Balances' AND event IN ('Transfer', 'transfer')"),
+    ]);
+  } catch {
+    // Non-critical — cache will fill lazily
+  }
+}
+
 /** Queryable interface: either the pool or a transaction client */
 type Queryable = { query: (text: string, params?: unknown[]) => Promise<unknown> };
 

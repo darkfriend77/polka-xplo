@@ -1,6 +1,6 @@
 import type { Express } from "express";
 import type { ApiContext } from "../types.js";
-import { getChainStats, query } from "@polka-xplo/db";
+import { getChainStats, query, warmQueryCache } from "@polka-xplo/db";
 import { getExistentialDeposit } from "../../runtime-parser.js";
 import { getSystemProperties, getParachainId } from "../../chain-state.js";
 import { metrics } from "../../metrics.js";
@@ -158,6 +158,8 @@ export function register(app: Express, ctx: ApiContext): void {
   statsRefreshTimer = setInterval(refreshStatsCache, STATS_TTL_MS);
   // Ensure timer doesn't keep the process alive
   if (statsRefreshTimer.unref) statsRefreshTimer.unref();
+  // Pre-warm the query cache so status page shows entries immediately
+  warmQueryCache();
 
   app.get("/api/stats", async (_req, res) => {
     try {
