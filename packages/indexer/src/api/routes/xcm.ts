@@ -1,6 +1,119 @@
 import type { Express } from "express";
-import { query, cachedCount, cachedQuery } from "@polka-xplo/db";
+import { query, cachedQuery } from "@polka-xplo/db";
 import { normalizeAddress } from "@polka-xplo/shared";
+
+// ============================================================
+// Aggregate count caches — one entry per table instead of one
+// per filter combination.  Cuts ~20 cache entries down to 2.
+// ============================================================
+
+interface MsgCountAgg {
+  total: number;
+  byDirection: Record<string, number>;
+  byProtocol: Record<string, number>;
+  byDirProto: Record<string, number>; // "inbound:HRMP" → count
+}
+
+interface XferCountAgg {
+  total: number;
+  byDirection: Record<string, number>;
+  byAsset: Record<string, number>;
+  byDirAsset: Record<string, number>; // "inbound:USDC" → count
+}
+
+/** Single cached aggregate for xcm_messages counts. */
+function getXcmMsgCounts(): Promise<MsgCountAgg> {
+  return cachedQuery<MsgCountAgg>("xcm_msg_counts", async () => {
+    const result = await query<{ direction: string; protocol: string; count: string }>(
+      `SELECT direction, protocol, COUNT(*)::bigint AS count
+       FROM xcm_messages GROUP BY direction, protocol`,
+    );
+    const agg: MsgCountAgg = { total: 0, byDirection: {}, byProtocol: {}, byDirProto: {} };
+    for (const row of result.rows) {
+      const c = parseInt(row.count, 10);
+      agg.total += c;
+      agg.byDirection[row.direction] = (agg.byDirection[row.direction] ?? 0) + c;
+      agg.byProtocol[row.protocol] = (agg.byProtocol[row.protocol] ?? 0) + c;
+      agg.byDirProto[`${row.direction}:${row.protocol}`] = c;
+    }
+    return agg;
+  }, 30_000);
+}
+
+/** Single cached aggregate for xcm_transfers counts. */
+function getXcmXferCounts(): Promise<XferCountAgg> {
+  return cachedQuery<XferCountAgg>("xcm_xfer_counts", async () => {
+    const result = await query<{ direction: string; asset_symbol: string; count: string }>(
+      `SELECT direction, COALESCE(asset_symbol, '') AS asset_symbol, COUNT(*)::bigint AS count
+       FROM xcm_transfers GROUP BY direction, asset_symbol`,
+    );
+    const agg: XferCountAgg = { total: 0, byDirection: {}, byAsset: {}, byDirAsset: {} };
+    for (const row of result.rows) {
+      const c = parseInt(row.count, 10);
+      agg.total += c;
+      agg.byDirection[row.direction] = (agg.byDirection[row.direction] ?? 0) + c;
+      if (row.asset_symbol) {
+        agg.byAsset[row.asset_symbol] = (agg.byAsset[row.asset_symbol] ?? 0) + c;
+        agg.byDirAsset[`${row.direction}:${row.asset_symbol}`] = c;
+      }
+    }
+    return agg;
+  }, 30_000);
+}
+
+/**
+ * Derive xcm_messages count from the aggregate when possible.
+ * Falls back to a real COUNT query only for chain_id filters
+ * (which can't be pre-aggregated cheaply).
+ */
+async function deriveMsgCount(
+  direction?: string,
+  protocol?: string,
+  chainId?: number,
+  where?: string,
+  params?: unknown[],
+): Promise<number> {
+  if (chainId != null) {
+    const result = await query<{ count: string }>(
+      `SELECT COUNT(*) AS count FROM xcm_messages${where ?? ""}`,
+      params ?? [],
+    );
+    return parseInt(result.rows[0]?.count ?? "0", 10);
+  }
+  const agg = await getXcmMsgCounts();
+  if (direction && protocol) return agg.byDirProto[`${direction}:${protocol}`] ?? 0;
+  if (direction) return agg.byDirection[direction] ?? 0;
+  if (protocol) return agg.byProtocol[protocol] ?? 0;
+  return agg.total;
+}
+
+/**
+ * Derive xcm_transfers count from the aggregate when possible.
+ * Falls back to a real COUNT query for from_chain / to_chain / address
+ * filters that can't be pre-aggregated.
+ */
+async function deriveXferCount(
+  direction?: string,
+  asset?: string,
+  fromChain?: number,
+  toChain?: number,
+  address?: string,
+  where?: string,
+  params?: unknown[],
+): Promise<number> {
+  if (fromChain != null || toChain != null || address) {
+    const result = await query<{ count: string }>(
+      `SELECT COUNT(*) AS count FROM xcm_transfers t${where ?? ""}`,
+      params ?? [],
+    );
+    return parseInt(result.rows[0]?.count ?? "0", 10);
+  }
+  const agg = await getXcmXferCounts();
+  if (direction && asset) return agg.byDirAsset[`${direction}:${asset}`] ?? 0;
+  if (direction) return agg.byDirection[direction] ?? 0;
+  if (asset) return agg.byAsset[asset] ?? 0;
+  return agg.total;
+}
 
 export function register(app: Express): void {
   /**
@@ -67,8 +180,7 @@ export function register(app: Express): void {
 
       const where = conditions.length > 0 ? ` WHERE ${conditions.join(" AND ")}` : "";
 
-      const cacheKey = `xcm_msgs${where}:${params.join(",")}`;
-      const countPromise = cachedCount(cacheKey, `SELECT COUNT(*) FROM xcm_messages${where}`, [...params]);
+      const countPromise = deriveMsgCount(direction, protocol, chainId, where, [...params]);
 
       params.push(limit, offset);
       const [total, rows] = await Promise.all([
@@ -184,8 +296,7 @@ export function register(app: Express): void {
 
       const where = conditions.length > 0 ? ` WHERE ${conditions.join(" AND ")}` : "";
 
-      const cacheKey = `xcm_xfers${where}:${params.join(",")}`;
-      const countPromise = cachedCount(cacheKey, `SELECT COUNT(*) FROM xcm_transfers t${where}`, [...params]);
+      const countPromise = deriveXferCount(direction, asset, fromChain, toChain, address, where, [...params]);
 
       params.push(limit, offset);
       const [total, rows] = await Promise.all([
