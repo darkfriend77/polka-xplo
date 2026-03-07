@@ -170,6 +170,17 @@ export class IngestionPipeline {
 
   /** Subscribe to the finalized block stream (with auto-reconnect) */
   private subscribeFinalized(retryCount = 0): void {
+    // Unsubscribe any previous subscription to prevent chainHead_follow leak
+    if (this.finalizedUnsub) {
+      try {
+        this.finalizedUnsub();
+      } catch {
+        // Ignore errors during cleanup of broken subscription
+      }
+      this.finalizedUnsub = null;
+    }
+
+    const MAX_STREAM_RETRIES = 10;
     const { client } = this.papiClient;
 
     const sub = client.finalizedBlock$.subscribe({
@@ -189,14 +200,26 @@ export class IngestionPipeline {
       },
       error: (err) => {
         console.error(`[Pipeline:${this.chainId}] Finalized stream error:`, err);
-        if (this.running) {
+        // Ensure the failed subscription is cleaned up
+        try {
+          sub.unsubscribe();
+        } catch {
+          // Ignore
+        }
+        if (this.running && retryCount < MAX_STREAM_RETRIES) {
           const delay = Math.min(1000 * 2 ** retryCount, 60_000);
           console.log(
-            `[Pipeline:${this.chainId}] Reconnecting finalized stream in ${delay}ms (attempt ${retryCount + 1})...`,
+            `[Pipeline:${this.chainId}] Reconnecting finalized stream in ${delay}ms (attempt ${retryCount + 1}/${MAX_STREAM_RETRIES})...`,
           );
           setTimeout(() => {
             if (this.running) this.subscribeFinalized(retryCount + 1);
           }, delay);
+        } else if (retryCount >= MAX_STREAM_RETRIES) {
+          console.error(
+            `[Pipeline:${this.chainId}] Finalized stream exhausted ${MAX_STREAM_RETRIES} retries. ` +
+            `Falling back to legacy RPC polling. Manual restart recommended.`,
+          );
+          metrics.recordError();
         }
       },
     });
@@ -206,6 +229,17 @@ export class IngestionPipeline {
 
   /** Subscribe to the best (unfinalized) block stream (with auto-reconnect) */
   private subscribeBestHead(retryCount = 0): void {
+    // Unsubscribe any previous subscription to prevent chainHead_follow leak
+    if (this.bestUnsub) {
+      try {
+        this.bestUnsub();
+      } catch {
+        // Ignore errors during cleanup of broken subscription
+      }
+      this.bestUnsub = null;
+    }
+
+    const MAX_STREAM_RETRIES = 10;
     const { client } = this.papiClient;
 
     const sub = client.bestBlocks$.subscribe({
@@ -225,14 +259,26 @@ export class IngestionPipeline {
       },
       error: (err) => {
         console.error(`[Pipeline:${this.chainId}] Best stream error:`, err);
-        if (this.running) {
+        // Ensure the failed subscription is cleaned up
+        try {
+          sub.unsubscribe();
+        } catch {
+          // Ignore
+        }
+        if (this.running && retryCount < MAX_STREAM_RETRIES) {
           const delay = Math.min(1000 * 2 ** retryCount, 60_000);
           console.log(
-            `[Pipeline:${this.chainId}] Reconnecting best stream in ${delay}ms (attempt ${retryCount + 1})...`,
+            `[Pipeline:${this.chainId}] Reconnecting best stream in ${delay}ms (attempt ${retryCount + 1}/${MAX_STREAM_RETRIES})...`,
           );
           setTimeout(() => {
             if (this.running) this.subscribeBestHead(retryCount + 1);
           }, delay);
+        } else if (retryCount >= MAX_STREAM_RETRIES) {
+          console.error(
+            `[Pipeline:${this.chainId}] Best stream exhausted ${MAX_STREAM_RETRIES} retries. ` +
+            `Best-head tracking disabled. Manual restart recommended.`,
+          );
+          metrics.recordError();
         }
       },
     });
