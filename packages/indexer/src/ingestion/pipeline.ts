@@ -1,5 +1,6 @@
 import { createRequire } from "node:module";
 import type { PapiClient } from "../client.js";
+import { getClient } from "../client.js";
 import type { PluginRegistry } from "../plugins/registry.js";
 import { RpcPool } from "../rpc-pool.js";
 import { processBlock, type RawBlockData } from "./block-processor.js";
@@ -46,6 +47,21 @@ export class IngestionPipeline {
   private finalizedUnsub: (() => void) | null = null;
   private bestUnsub: (() => void) | null = null;
 
+  /** Timestamp (ms) of the last finalized block received via PAPI subscription */
+  private lastFinalizedAt = 0;
+  /** Watchdog interval handle */
+  private watchdogInterval: ReturnType<typeof setInterval> | null = null;
+  /** Whether a reconnect is currently in progress (prevents concurrent reconnects) */
+  private reconnecting = false;
+  /** How long (ms) without a finalized block before triggering a reconnect */
+  private static readonly STALL_THRESHOLD_MS = 5 * 60_000; // 5 minutes
+  /** How often (ms) the watchdog checks for stalls */
+  private static readonly WATCHDOG_INTERVAL_MS = 60_000; // 1 minute
+  /** How often (ms) the legacy RPC poller checks for new blocks */
+  private static readonly POLL_INTERVAL_MS = 12_000; // ~1 block time
+  /** Legacy RPC polling interval handle */
+  private pollInterval: ReturnType<typeof setInterval> | null = null;
+
   constructor(papiClient: PapiClient, registry: PluginRegistry, rpcPool: RpcPool) {
     this.papiClient = papiClient;
     this.registry = registry;
@@ -66,8 +82,13 @@ export class IngestionPipeline {
     await this.backfill();
 
     // Phase 2: Subscribe to live streams
+    this.lastFinalizedAt = Date.now();
     this.subscribeFinalized();
     this.subscribeBestHead();
+
+    // Phase 3: Start the stall watchdog and legacy RPC poller
+    this.startWatchdog();
+    this.startLegacyPoller();
 
     console.log(`[Pipeline:${this.chainId}] Pipeline is live.`);
   }
@@ -77,6 +98,12 @@ export class IngestionPipeline {
     this.running = false;
     if (this.finalizedUnsub) this.finalizedUnsub();
     if (this.bestUnsub) this.bestUnsub();
+    if (this.watchdogInterval) clearInterval(this.watchdogInterval);
+    if (this.pollInterval) clearInterval(this.pollInterval);
+    this.finalizedUnsub = null;
+    this.bestUnsub = null;
+    this.watchdogInterval = null;
+    this.pollInterval = null;
     console.log(`[Pipeline:${this.chainId}] Pipeline stopped.`);
   }
 
@@ -168,6 +195,145 @@ export class IngestionPipeline {
     }
   }
 
+  /**
+   * Stall watchdog — periodically checks if the PAPI subscription is still
+   * delivering finalized blocks. If not, it destroys the entire PAPI client
+   * (closing the WebSocket to release all leaked chainHead_follow subscriptions)
+   * and creates a fresh one.
+   *
+   * This handles the case where PAPI's internal follow-enhancer enters an
+   * infinite retry loop without ever surfacing an error to our Observable
+   * subscriber. The internal retries leak chainHead_follow subscriptions on
+   * the RPC node, saturating its limit and creating a death spiral.
+   */
+  private startWatchdog(): void {
+    this.watchdogInterval = setInterval(async () => {
+      if (!this.running) return;
+
+      const stalledMs = Date.now() - this.lastFinalizedAt;
+      if (stalledMs < IngestionPipeline.STALL_THRESHOLD_MS) return;
+
+      console.warn(
+        `[Pipeline:${this.chainId}] Watchdog: no finalized block received for ${Math.round(stalledMs / 1000)}s. ` +
+        `Triggering PAPI client reconnect...`,
+      );
+      metrics.recordError();
+
+      await this.reconnectPapiClient();
+    }, IngestionPipeline.WATCHDOG_INTERVAL_MS);
+  }
+
+  /**
+   * Legacy RPC poller — periodically checks for new finalized blocks using
+   * the legacy JSON-RPC API (which doesn't use chainHead_follow). This acts
+   * as a safety net so blocks keep being processed even when the PAPI
+   * subscription is broken.
+   */
+  private startLegacyPoller(): void {
+    this.pollInterval = setInterval(async () => {
+      if (!this.running) return;
+
+      try {
+        // Only poll if the PAPI subscription appears stalled (>2 min without a block)
+        const stalledMs = Date.now() - this.lastFinalizedAt;
+        if (stalledMs < 2 * 60_000) return;
+
+        const dbHeight = await getLastFinalizedHeight();
+        const chainTip = await this.getChainFinalizedHeightViaRpc();
+        if (chainTip <= dbHeight) return;
+
+        const gap = chainTip - dbHeight;
+        console.log(
+          `[Pipeline:${this.chainId}] Poller: catching up ${gap} blocks via legacy RPC (${dbHeight + 1} → ${chainTip})`,
+        );
+
+        const BATCH_SIZE = parseInt(process.env.BATCH_SIZE ?? "100", 10);
+        const CONCURRENCY = Math.min(
+          parseInt(process.env.BACKFILL_CONCURRENCY ?? "10", 10),
+          BATCH_SIZE,
+        );
+
+        for (let start = dbHeight + 1; start <= chainTip; start += BATCH_SIZE) {
+          if (!this.running) break;
+          // If PAPI subscription recovered, stop polling-based catch-up
+          if (Date.now() - this.lastFinalizedAt < 60_000) {
+            console.log(`[Pipeline:${this.chainId}] Poller: PAPI subscription recovered, stopping catch-up.`);
+            break;
+          }
+
+          const end = Math.min(start + BATCH_SIZE - 1, chainTip);
+          const heights: number[] = [];
+          for (let h = start; h <= end; h++) heights.push(h);
+
+          await this.runWithConcurrency(
+            heights,
+            (h) => this.fetchAndProcessByHash(null, h, "finalized"),
+            CONCURRENCY,
+          );
+
+          await finalizeBlock(end);
+          await upsertIndexerState(this.chainId, end, end, "live");
+          metrics.setChainTip(end);
+        }
+      } catch (err) {
+        console.error(`[Pipeline:${this.chainId}] Poller error:`, err);
+      }
+    }, IngestionPipeline.POLL_INTERVAL_MS);
+  }
+
+  /**
+   * Destroy the current PAPI client (closing its WebSocket to release all
+   * leaked chainHead_follow subscriptions on the RPC node), create a fresh
+   * one, and re-subscribe to the finalized and best-head streams.
+   */
+  private async reconnectPapiClient(): Promise<void> {
+    if (this.reconnecting) return;
+    this.reconnecting = true;
+
+    try {
+      console.log(`[Pipeline:${this.chainId}] Reconnecting PAPI client...`);
+
+      // 1. Tear down existing subscriptions
+      if (this.finalizedUnsub) {
+        try { this.finalizedUnsub(); } catch { /* ignore */ }
+        this.finalizedUnsub = null;
+      }
+      if (this.bestUnsub) {
+        try { this.bestUnsub(); } catch { /* ignore */ }
+        this.bestUnsub = null;
+      }
+
+      // 2. Destroy the PAPI client — this closes the WebSocket, which
+      //    releases ALL chainHead_follow subscriptions on the RPC node.
+      try {
+        this.papiClient.disconnect();
+      } catch (err) {
+        console.warn(`[Pipeline:${this.chainId}] Error during PAPI disconnect:`, err);
+      }
+
+      // 3. Brief pause to let the RPC node clean up
+      await new Promise((r) => setTimeout(r, 2000));
+
+      // 4. Create a fresh PAPI client with a new WebSocket connection
+      const freshClient = getClient(this.papiClient.chainConfig);
+      this.papiClient = freshClient;
+
+      console.log(`[Pipeline:${this.chainId}] Fresh PAPI client created, re-subscribing...`);
+
+      // 5. Re-subscribe to live streams
+      this.lastFinalizedAt = Date.now();
+      this.subscribeFinalized();
+      this.subscribeBestHead();
+
+      console.log(`[Pipeline:${this.chainId}] PAPI client reconnected successfully.`);
+    } catch (err) {
+      console.error(`[Pipeline:${this.chainId}] Failed to reconnect PAPI client:`, err);
+      metrics.recordError();
+    } finally {
+      this.reconnecting = false;
+    }
+  }
+
   /** Subscribe to the finalized block stream (with auto-reconnect) */
   private subscribeFinalized(retryCount = 0): void {
     // Unsubscribe any previous subscription to prevent chainHead_follow leak
@@ -180,13 +346,14 @@ export class IngestionPipeline {
       this.finalizedUnsub = null;
     }
 
-    const MAX_STREAM_RETRIES = 10;
+    const MAX_STREAM_RETRIES = 5;
     const { client } = this.papiClient;
 
     const sub = client.finalizedBlock$.subscribe({
       next: async (block) => {
         try {
           console.log(`[Pipeline:${this.chainId}] Finalized block #${block.number}`);
+          this.lastFinalizedAt = Date.now();
 
           await this.fetchAndProcessByHash(block.hash, block.number, "finalized");
           await finalizeBlock(block.number);
@@ -207,7 +374,7 @@ export class IngestionPipeline {
           // Ignore
         }
         if (this.running && retryCount < MAX_STREAM_RETRIES) {
-          const delay = Math.min(1000 * 2 ** retryCount, 60_000);
+          const delay = Math.min(1000 * 2 ** retryCount, 30_000);
           console.log(
             `[Pipeline:${this.chainId}] Reconnecting finalized stream in ${delay}ms (attempt ${retryCount + 1}/${MAX_STREAM_RETRIES})...`,
           );
@@ -217,9 +384,11 @@ export class IngestionPipeline {
         } else if (retryCount >= MAX_STREAM_RETRIES) {
           console.error(
             `[Pipeline:${this.chainId}] Finalized stream exhausted ${MAX_STREAM_RETRIES} retries. ` +
-            `Falling back to legacy RPC polling. Manual restart recommended.`,
+            `Triggering full PAPI client reconnect...`,
           );
           metrics.recordError();
+          // Nuclear option: destroy and recreate the entire PAPI client
+          this.reconnectPapiClient();
         }
       },
     });
@@ -239,7 +408,7 @@ export class IngestionPipeline {
       this.bestUnsub = null;
     }
 
-    const MAX_STREAM_RETRIES = 10;
+    const MAX_STREAM_RETRIES = 5;
     const { client } = this.papiClient;
 
     const sub = client.bestBlocks$.subscribe({
@@ -266,7 +435,7 @@ export class IngestionPipeline {
           // Ignore
         }
         if (this.running && retryCount < MAX_STREAM_RETRIES) {
-          const delay = Math.min(1000 * 2 ** retryCount, 60_000);
+          const delay = Math.min(1000 * 2 ** retryCount, 30_000);
           console.log(
             `[Pipeline:${this.chainId}] Reconnecting best stream in ${delay}ms (attempt ${retryCount + 1}/${MAX_STREAM_RETRIES})...`,
           );
@@ -276,7 +445,7 @@ export class IngestionPipeline {
         } else if (retryCount >= MAX_STREAM_RETRIES) {
           console.error(
             `[Pipeline:${this.chainId}] Best stream exhausted ${MAX_STREAM_RETRIES} retries. ` +
-            `Best-head tracking disabled. Manual restart recommended.`,
+            `Will recover via watchdog reconnect.`,
           );
           metrics.recordError();
         }
@@ -582,6 +751,19 @@ export class IngestionPipeline {
       const { client } = this.papiClient;
       const block = await client.getFinalizedBlock();
       return block.number;
+    } catch {
+      return 0;
+    }
+  }
+
+  /** Get the chain finalized height via legacy JSON-RPC (doesn't use chainHead_follow) */
+  private async getChainFinalizedHeightViaRpc(): Promise<number> {
+    try {
+      const hash = await this.rpcPool.call<string>("chain_getFinalizedHead", []);
+      if (!hash) return 0;
+      const header = await this.rpcPool.call<{ number: string }>("chain_getHeader", [hash]);
+      if (!header?.number) return 0;
+      return parseInt(header.number, 16);
     } catch {
       return 0;
     }

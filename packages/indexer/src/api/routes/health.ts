@@ -48,13 +48,18 @@ export function register(app: Express, ctx: ApiContext): void {
   app.get("/health", async (_req, res) => {
     try {
       const state = await getIndexerState(ctx.chainId);
+      const metricsSnap = metrics.getSnapshot();
+      // Use the metrics chain tip (updated by pipeline) since getIndexerState
+      // doesn't track chain tip separately from last_finalized_block.
+      const chainTip = metricsSnap.chainTip || state?.lastFinalizedBlock || 0;
+      const indexedTip = state?.lastFinalizedBlock ?? 0;
       res.json({
         status: state?.state === "live" ? "healthy" : "degraded",
         nodeConnected: true,
-        syncLag: state ? state.chainTip - state.lastFinalizedBlock : -1,
+        syncLag: chainTip - indexedTip,
         dbConnected: true,
-        chainTip: state?.chainTip ?? 0,
-        indexedTip: state?.lastFinalizedBlock ?? 0,
+        chainTip,
+        indexedTip,
         timestamp: Date.now(),
       });
     } catch (err) {

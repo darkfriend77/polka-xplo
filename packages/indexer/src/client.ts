@@ -11,10 +11,18 @@ export interface PapiClient {
 /** Map of active PAPI clients keyed by chain ID */
 const clients = new Map<string, PapiClient>();
 
-/** Create and cache a PAPI client for a chain */
+/** Create a new PAPI client for a chain (always creates fresh, replaces any cached instance) */
 export function getClient(chainConfig: ChainConfig): PapiClient {
+  // Destroy any existing client for this chain to release WebSocket + chainHead follows
   const existing = clients.get(chainConfig.id);
-  if (existing) return existing;
+  if (existing) {
+    try {
+      existing.client.destroy();
+    } catch {
+      // Ignore errors during cleanup
+    }
+    clients.delete(chainConfig.id);
+  }
 
   console.log(`[PAPI] Connecting to ${chainConfig.name} via ${chainConfig.rpc[0]}`);
 
