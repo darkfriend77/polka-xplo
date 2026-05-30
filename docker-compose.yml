@@ -8,8 +8,6 @@ services:
       POSTGRES_USER: polkaxplo
       POSTGRES_PASSWORD: polkaxplo
       POSTGRES_DB: polkaxplo
-    ports:
-      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     # Tuned for 8 GB RAM host with large dataset
