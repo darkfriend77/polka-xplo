@@ -45,11 +45,14 @@ const ACTIVITY_TTL: Record<string, number> = {
 };
 /** How far back to scan per period (avoids full-table scans) */
 const LOOKBACK_INTERVALS: Record<string, string> = {
-  hour: "400 hours",   // generous margin over 365 hours
-  day: "400 days",
-  week: "200 weeks",
-  month: "400 months",
+  hour: "72 hours",
+  day: "120 days",
+  week: "104 weeks",
+  month: "60 months",
 };
+
+/** Hard cap for activity query execution to prevent DB pressure/OOM */
+const ACTIVITY_QUERY_TIMEOUT_MS = 4000;
 
 export function register(app: Express, ctx: ApiContext): void {
   /**
@@ -245,7 +248,10 @@ export function register(app: Express, ctx: ApiContext): void {
       const lookback = LOOKBACK_INTERVALS[period] ?? "400 days";
 
       const result = await query(
-        `WITH block_stats AS (
+        `WITH __cfg AS (
+           SELECT set_config('statement_timeout', '${ACTIVITY_QUERY_TIMEOUT_MS}', true)
+         ),
+         block_stats AS (
            SELECT
              date_trunc($1, to_timestamp(b.timestamp / 1000)) AS bucket,
              SUM(b.extrinsic_count)::int AS extrinsics,
@@ -300,7 +306,10 @@ export function register(app: Express, ctx: ApiContext): void {
 
       res.json(response);
     } catch (err) {
-      res.status(500).json({ error: String(err) });
+      // Keep the API available even if this expensive query times out.
+      // Frontend can render with an empty chart instead of cascading failures.
+      const msg = err instanceof Error ? err.message : String(err);
+      res.status(200).json({ period: String(req.query.period || "day"), count: 0, data: [], degraded: true, error: msg });
     }
   });
 }

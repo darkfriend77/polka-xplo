@@ -54,20 +54,36 @@ async function ChainStatsSection() {
 
 /** Latest blocks card — streamed independently. */
 async function LatestBlocksSection() {
-  const blocksRes = await getBlocks(10, 0);
-  return <LatestBlocksCard blocks={blocksRes.data} />;
+  try {
+    const blocksRes = await getBlocks(10, 0);
+    return <LatestBlocksCard blocks={blocksRes.data} />;
+  } catch {
+    return (
+      <div className="rounded-lg border border-yellow-800/50 bg-yellow-950/30 p-3 text-sm text-yellow-300">
+        Unable to load latest blocks right now.
+      </div>
+    );
+  }
 }
 
 /** Latest transfers card — streamed independently. */
 async function LatestTransfersSection() {
-  const transfers = await getTransfers(10);
-  return (
-    <LatestTransfersCard
-      transfers={transfers}
-      tokenDecimals={theme.tokenDecimals}
-      tokenSymbol={theme.tokenSymbol}
-    />
-  );
+  try {
+    const transfers = await getTransfers(10);
+    return (
+      <LatestTransfersCard
+        transfers={transfers}
+        tokenDecimals={theme.tokenDecimals}
+        tokenSymbol={theme.tokenSymbol}
+      />
+    );
+  } catch {
+    return (
+      <div className="rounded-lg border border-yellow-800/50 bg-yellow-950/30 p-3 text-sm text-yellow-300">
+        Unable to load latest transfers right now.
+      </div>
+    );
+  }
 }
 
 // ---- Skeleton fallbacks ----
