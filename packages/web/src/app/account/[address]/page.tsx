@@ -221,7 +221,7 @@ function IdentityLinks({ identity }: { identity: OnChainIdentity }) {
   if (identity.riot) {
     links.push({ label: "Riot / Matrix", href: "#", icon: <RiotIcon /> });
   }
-  for (const { key, value } of identity.additional) {
+  for (const { key } of identity.additional) {
     if (key.toLowerCase() === "discord") {
       links.push({ label: "Discord", href: "#", icon: <DiscordIcon /> });
     }

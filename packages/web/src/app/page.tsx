@@ -54,36 +54,49 @@ async function ChainStatsSection() {
 
 /** Latest blocks card — streamed independently. */
 async function LatestBlocksSection() {
+  let blocks: Awaited<ReturnType<typeof getBlocks>>["data"] | null = null;
   try {
     const blocksRes = await getBlocks(10, 0);
-    return <LatestBlocksCard blocks={blocksRes.data} />;
+    blocks = blocksRes.data;
   } catch {
+    // Render fallback below
+  }
+
+  if (!blocks) {
     return (
       <div className="rounded-lg border border-yellow-800/50 bg-yellow-950/30 p-3 text-sm text-yellow-300">
         Unable to load latest blocks right now.
       </div>
     );
   }
+
+  return <LatestBlocksCard blocks={blocks} />;
 }
 
 /** Latest transfers card — streamed independently. */
 async function LatestTransfersSection() {
+  let transfers: Awaited<ReturnType<typeof getTransfers>> | null = null;
   try {
-    const transfers = await getTransfers(10);
-    return (
-      <LatestTransfersCard
-        transfers={transfers}
-        tokenDecimals={theme.tokenDecimals}
-        tokenSymbol={theme.tokenSymbol}
-      />
-    );
+    transfers = await getTransfers(10);
   } catch {
+    // Render fallback below
+  }
+
+  if (!transfers) {
     return (
       <div className="rounded-lg border border-yellow-800/50 bg-yellow-950/30 p-3 text-sm text-yellow-300">
         Unable to load latest transfers right now.
       </div>
     );
   }
+
+  return (
+    <LatestTransfersCard
+      transfers={transfers}
+      tokenDecimals={theme.tokenDecimals}
+      tokenSymbol={theme.tokenSymbol}
+    />
+  );
 }
 
 // ---- Skeleton fallbacks ----

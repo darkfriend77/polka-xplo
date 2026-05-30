@@ -151,7 +151,7 @@ export function AccountActivity({
         setXcmLoading(false);
       }
     },
-    [address],
+    [address, hexAddress],
   );
 
   // Fetch transfers when tab is first activated

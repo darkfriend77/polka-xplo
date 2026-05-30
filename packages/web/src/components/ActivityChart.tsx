@@ -222,10 +222,13 @@ export function ActivityChart() {
                 labelStyle={{ color: "#a1a1aa", marginBottom: "4px" }}
                 itemStyle={{ padding: "1px 0" }}
                 labelFormatter={(ts) => formatLabel(ts as number, period)}
-                formatter={(value: number | undefined) => [
-                  value != null ? value.toLocaleString() : "0",
-                  undefined,
-                ]}
+                formatter={(value) => {
+                  const normalized = Array.isArray(value) ? value[0] : value;
+                  const asNumber = typeof normalized === "number"
+                    ? normalized
+                    : Number(normalized ?? 0);
+                  return [Number.isFinite(asNumber) ? asNumber.toLocaleString() : "0", ""];
+                }}
               />
               {METRICS.filter((m) => activeMetrics.has(m.key)).map((m) => (
                 <Area

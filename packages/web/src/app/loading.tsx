@@ -1,4 +1,4 @@
-import { SkeletonPageHeader, SkeletonCard, SkeletonTable } from "@/components/Skeleton";
+import { SkeletonCard } from "@/components/Skeleton";
 
 /** Home page loading skeleton — mirrors ChainOverview + StatsBar + chart + two-column grid. */
 export default function HomeLoading() {
